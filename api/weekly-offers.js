@@ -1,4 +1,4 @@
-// Vercel Serverless Function
+  // Vercel Serverless Function
 // POST /api/weekly-offers
 // body: { banco, tarjeta, dominioOficial, urlsOficiales, region, comuna }
 //
@@ -67,7 +67,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2) Si la extracción no trajo suficiente contenido útil, buscamos como respaldo
+    // 2) Si la extracción no trajo suficiente contenido útil, buscamos como respaldo.
+    // IMPORTANTE: aquí NO restringimos por dominio oficial. Si ya intentamos extraer ese
+    // dominio y falló (típico de sitios que cargan todo con JavaScript, como ScotiaRewards),
+    // restringir la búsqueda de respaldo al mismo dominio solo repetiría el mismo problema
+    // — Tavily indexaría lo mismo (poco) que ya sabemos que no sirve. En vez de eso, buscamos
+    // en toda la web: blogs, medios, o páginas de terceros que puedan describir la promoción
+    // con más detalle que el sitio oficial.
     if (!contenidoEsUtil(rawResults)) {
       fuenteMetodo = 'search';
       const query = `descuentos restaurantes gastronomía comida lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo -ropa -tecnología -deporte`;
@@ -79,8 +85,7 @@ export default async function handler(req, res) {
           api_key: TAVILY_API_KEY,
           query,
           search_depth: 'advanced',
-          max_results: 5,
-          include_domains: dominioOficial ? [dominioOficial] : [],
+          max_results: 6,
         }),
       });
 
