@@ -45,7 +45,7 @@ export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, o
         )}
         {tarjetas.map((t) => {
           const isActive = seleccionada?.id === t.id;
-          const colores = getBankColors(t.banco);
+          const colores = getBankColors(t.banco, t.nombre);
           const cardStyle = {
             ...styles.card,
             background: `linear-gradient(135deg, ${colores.from}, ${colores.to})`,
@@ -71,6 +71,9 @@ export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, o
               </div>
               <p style={{ ...styles.cardBanco, color: colores.text }}>{t.banco}</p>
               <p style={{ ...styles.cardNombre, color: colores.text }}>{t.nombre}</p>
+              {colores.accent && (
+                <div style={{ ...styles.cardAccent, background: colores.accent }} />
+              )}
             </div>
           );
         })}
@@ -119,6 +122,9 @@ const styles = {
     position: 'absolute', inset: 0,
     background: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.25) 100%)',
     pointerEvents: 'none',
+  },
+  cardAccent: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '4px',
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', position: 'relative' },
   chip: {
