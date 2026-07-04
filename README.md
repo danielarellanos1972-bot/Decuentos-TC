@@ -36,3 +36,4 @@ Nota: la función `/api/search-offers` solo corre en el entorno de Vercel (o con
 - Notificaciones cuando una promoción esté por vencer.
 - Filtrar por región/comuna si el banco lo especifica.
 - Botón "comparar todas mis tarjetas" para ver qué tarjeta conviene más en una categoría.
+- 
