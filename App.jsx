@@ -1,0 +1,162 @@
+import { useEffect, useState } from 'react';
+import CardManager from './components/CardManager.jsx';
+import CategoryFilter from './components/CategoryFilter.jsx';
+import OffersList from './components/OffersList.jsx';
+import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
+import { getFuenteOficial } from './data/fuentesOficiales.js';
+
+const STORAGE_KEY = 'descuentos-tc-tarjetas';
+
+export default function App() {
+  const [tarjetas, setTarjetas] = useState([]);
+  const [tarjetaSel, setTarjetaSel] = useState(null);
+  const [categoriaSel, setCategoriaSel] = useState(CATEGORIAS[0]);
+  const [ofertas, setOfertas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [mensaje, setMensaje] = useState(null);
+
+  // Cargar tarjetas guardadas, o precargar las de ejemplo la primera vez
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setTarjetas(parsed);
+      if (parsed.length > 0) setTarjetaSel(parsed[0]);
+    } else {
+      setTarjetas(TARJETAS_PRECARGADAS);
+      setTarjetaSel(TARJETAS_PRECARGADAS[0]);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tarjetas));
+  }, [tarjetas]);
+
+  const handleAddCard = (nueva) => {
+    setTarjetas((prev) => [...prev, nueva]);
+    setTarjetaSel(nueva);
+  };
+
+  const handleDeleteCard = (id) => {
+    setTarjetas((prev) => prev.filter((t) => t.id !== id));
+    if (tarjetaSel?.id === id) setTarjetaSel(null);
+  };
+
+  const buscarOfertas = async () => {
+    if (!tarjetaSel) {
+      setError('Selecciona una tarjeta primero.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setMensaje(null);
+    setOfertas([]);
+    try {
+      const fuente = getFuenteOficial(tarjetaSel.banco);
+      const resp = await fetch('/api/search-offers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          banco: tarjetaSel.banco,
+          tarjeta: tarjetaSel.nombre,
+          categoria: categoriaSel.id,
+          categoriaLabel: categoriaSel.label,
+          dominioOficial: fuente?.dominio || null,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Error buscando ofertas');
+      setOfertas(data.ofertas || []);
+      if ((data.ofertas || []).length === 0) {
+        setMensaje(data.mensaje || 'No se encontraron promociones vigentes para esta combinación. Prueba otra categoría.');
+      }
+    } catch (err) {
+      setError(err.message || 'No se pudo conectar con el buscador. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={styles.page}>
+      <header style={styles.header}>
+        <p style={styles.eyebrow}>Descuentos con Tarjeta · Chile</p>
+        <h1 style={styles.h1}>Beneficios TC</h1>
+        <p style={styles.sub}>Descuentos vigentes en restaurantes y comercios, por banco y tarjeta.</p>
+      </header>
+
+      <main style={styles.main}>
+        <CardManager
+          tarjetas={tarjetas}
+          onAdd={handleAddCard}
+          onDelete={handleDeleteCard}
+          seleccionada={tarjetaSel}
+          onSelect={setTarjetaSel}
+        />
+
+        <h2 style={styles.h2}>Categoría</h2>
+        <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
+
+        <button
+          style={styles.searchBtn}
+          onClick={buscarOfertas}
+          disabled={loading || !tarjetaSel}
+        >
+          {loading ? 'Buscando…' : `Buscar ofertas ${categoriaSel.emoji}`}
+        </button>
+
+        <div style={styles.resultsHeader}>
+          {tarjetaSel && (
+            <p style={styles.resultsContext}>
+              {tarjetaSel.banco} — {tarjetaSel.nombre}
+            </p>
+          )}
+          {tarjetaSel && getFuenteOficial(tarjetaSel.banco) && (() => {
+            const fuente = getFuenteOficial(tarjetaSel.banco);
+            const usarGeneral = categoriaSel.id !== 'restaurantes' && fuente.urlGeneral;
+            const urlMostrar = usarGeneral ? fuente.urlGeneral : fuente.url;
+            const nombreMostrar = usarGeneral ? `${fuente.nombrePortal.split('—')[0].trim()} — Beneficios generales` : fuente.nombrePortal;
+            return (
+              <a href={urlMostrar} target="_blank" rel="noreferrer" style={styles.portalLink}>
+                Ir directo a {nombreMostrar} ↗
+              </a>
+            );
+          })()}
+        </div>
+
+        <OffersList ofertas={ofertas} loading={loading} error={error} mensaje={mensaje} />
+      </main>
+
+      <footer style={styles.footer}>
+        <p>Los resultados provienen de búsqueda web en tiempo real y pueden variar. Verifica siempre en la app o sitio oficial de tu banco antes de usar el beneficio.</p>
+      </footer>
+    </div>
+  );
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh', maxWidth: '480px', margin: '0 auto', padding: '24px 18px 40px',
+  },
+  header: { marginBottom: '26px' },
+  eyebrow: {
+    fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em',
+    color: 'var(--gold-300)', margin: '0 0 6px', fontWeight: 600,
+  },
+  h1: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
+  sub: { fontSize: '0.92rem', opacity: 0.7, margin: 0, lineHeight: 1.5 },
+  main: {},
+  h2: { fontFamily: 'var(--font-display)', fontSize: '1.15rem', margin: '0 0 12px' },
+  searchBtn: {
+    width: '100%', background: 'var(--gold-500)', color: 'var(--navy-950)', border: 'none',
+    borderRadius: '12px', padding: '15px', fontSize: '1rem', fontWeight: 700, marginBottom: '22px',
+  },
+  resultsHeader: { marginBottom: '10px' },
+  resultsContext: { fontSize: '0.8rem', opacity: 0.6, margin: '0 0 4px' },
+  portalLink: { fontSize: '0.8rem', color: 'var(--mint-300)', textDecoration: 'none' },
+  footer: {
+    marginTop: '36px', borderTop: '1px solid var(--navy-800)', paddingTop: '16px',
+    fontSize: '0.72rem', opacity: 0.5, lineHeight: 1.5,
+  },
+};
