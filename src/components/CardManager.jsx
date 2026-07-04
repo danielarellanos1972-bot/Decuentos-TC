@@ -16,7 +16,7 @@ export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, o
   return (
     <section style={styles.wrap}>
       <div style={styles.headerRow}>
-        <h2 style={styles.h2}>Mis tarjetas</h2>
+        <h2 style={styles.h2}>Mis Tarjetas</h2>
         <button style={styles.addBtn} onClick={() => setShowForm((s) => !s)}>
           {showForm ? 'Cancelar' : '+ Agregar tarjeta'}
         </button>
