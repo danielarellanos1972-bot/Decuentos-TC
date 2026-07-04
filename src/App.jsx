@@ -95,17 +95,17 @@ export default function App() {
           onSelect={setTarjetaSel}
         />
 
+        <WeeklyOffers tarjetas={tarjetas} />
+
         <h2 style={styles.h2}>Categoría</h2>
         <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
-
-        <WeeklyOffers tarjetas={tarjetas} />
 
         <button
           style={styles.searchBtn}
           onClick={buscarOfertas}
           disabled={loading || !tarjetaSel}
         >
-          {loading ? 'Buscando…' : `Buscar ofertas ${categoriaSel.emoji}`}
+          {loading ? 'Buscando…' : `Buscar Oferta ${categoriaSel.emoji}`}
         </button>
 
         <div style={styles.resultsHeader}>
