@@ -179,16 +179,36 @@ export default async function handler(req, res) {
       /^descuentos?\b/i,
       /^gastronom[ií]a\b/i,
       /^compras?\b/i,
+      /^ruta\s+gourmet\b/i,      // nombre de la promoción, no de un comercio
       /adherid[oa]s?\s+a/i,      // "...adheridos a la promoción..."
       /asociad[oa]s?\s+a/i,      // "...asociados a Transbank..."
       /participantes?\b/i,
     ];
     const esGenerico = (nombre) => PATRONES_GENERICOS.some((rx) => rx.test(nombre.trim()));
 
+    // Respaldo determinístico (no depende de que el modelo de IA siga la instrucción):
+    // marcas conocidas que NO son de rubro gastronómico, y ciudades/regiones que a veces
+    // el modelo confunde con el nombre de un comercio.
+    const MARCAS_NO_GASTRONOMICAS = [
+      'hush puppies', 'rockford', 'under armour', 'adidas', 'nike', 'puma', 'reebok',
+      'columbia', 'doite', 'falabella', 'ripley', 'paris', 'la polar', 'sodimac',
+      'homecenter', 'líder', 'lider', 'jumbo', 'tottus', 'farmacias ahumada',
+      'cruz verde', 'salcobrand', 'easy',
+    ];
+    const CIUDADES_FUERA_DE_RM = [
+      'antofagasta', 'iquique', 'arica', 'concepción', 'concepcion', 'temuco',
+      'valdivia', 'puerto montt', 'la serena', 'copiapó', 'copiapo', 'rancagua',
+      'talca', 'chillán', 'chillan', 'osorno', 'coyhaique', 'punta arenas',
+    ];
+    const esNoConfiable = (nombre) => {
+      const n = nombre.trim().toLowerCase();
+      return MARCAS_NO_GASTRONOMICAS.some((m) => n.includes(m)) || CIUDADES_FUERA_DE_RM.some((c) => n.startsWith(c));
+    };
+
     const vistos = new Set();
     const ofertasPorDia = (parsed.ofertasPorDia || [])
       .filter((o) => DIAS_VALIDOS.includes(o.dia))
-      .filter((o) => o.comercio && !esGenerico(o.comercio))
+      .filter((o) => o.comercio && !esGenerico(o.comercio) && !esNoConfiable(o.comercio))
       .filter((o) => {
         const clave = `${o.dia}|${o.comercio.trim().toLowerCase()}|${o.descuento}`;
         if (vistos.has(clave)) return false;
