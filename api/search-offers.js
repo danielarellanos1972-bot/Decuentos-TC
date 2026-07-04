@@ -3,7 +3,12 @@
 // body: { banco: string, tarjeta: string, categoria: string, categoriaLabel: string }
 //
 // 1) Busca en la web (Tavily) promociones/descuentos vigentes para ese banco+tarjeta+categoría
-// 2) Usa Groq (llama-3.3-70b-versatile) para estructurar los resultados crudos en ofertas limpias
+// 2) Usa Groq (llama-3.1-8b-instant) para estructurar los resultados crudos en ofertas limpias
+//
+// Nota sobre el modelo: se usa llama-3.1-8b-instant (no el 70b-versatile) porque Groq
+// aplica límites de tokens/día POR MODELO. Si otra app (ej: AgenteOfertas) ya consume la
+// cuota diaria del 70b-versatile en la misma cuenta, usar un modelo distinto aquí evita
+// que ambas apps compitan por el mismo límite.
 //
 // Requiere variables de entorno en Vercel: TAVILY_API_KEY, GROQ_API_KEY
 
@@ -32,7 +37,6 @@ export default async function handler(req, res) {
   const query = `descuentos y promociones ${categoriaLabel || 'restaurantes y comercios'} con tarjeta ${tarjeta ? tarjeta + ' ' : ''}${banco} Chile ${mesActual}`;
 
   try {
-    // 1) Búsqueda web en vivo con Tavily
     const tavilyResp = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -40,10 +44,7 @@ export default async function handler(req, res) {
         api_key: TAVILY_API_KEY,
         query,
         search_depth: 'advanced',
-        max_results: 8,
-        // Si conocemos el portal oficial de beneficios del banco (ej: scotiarewards.cl para
-        // Scotiabank, que es un dominio DISTINTO al del banco), priorizamos ese dominio para
-        // no perdernos en la home genérica del banco.
+        max_results: 5,
         include_domains: dominioOficial ? [dominioOficial] : [],
       }),
     });
@@ -54,15 +55,19 @@ export default async function handler(req, res) {
     }
 
     const tavilyData = await tavilyResp.json();
+
+    const MAX_CHARS_POR_RESULTADO = 600;
     const rawResults = (tavilyData.results || [])
-      .map((r, i) => `[Fuente ${i + 1}] ${r.title}\nURL: ${r.url}\nContenido: ${r.content}`)
+      .map((r, i) => {
+        const contenido = (r.content || '').slice(0, MAX_CHARS_POR_RESULTADO);
+        return `[Fuente ${i + 1}] ${r.title}\nURL: ${r.url}\nContenido: ${contenido}`;
+      })
       .join('\n\n');
 
     if (!rawResults) {
       return res.status(200).json({ ofertas: [], mensaje: 'No se encontraron resultados en la búsqueda web.' });
     }
 
-    // 2) Estructurar con Groq
     const groqResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -70,7 +75,7 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         temperature: 0.1,
         messages: [
           {
@@ -92,6 +97,23 @@ export default async function handler(req, res) {
 
     if (!groqResp.ok) {
       const errText = await groqResp.text();
+
+      if (groqResp.status === 429) {
+        let minutos = null;
+        try {
+          const parsedErr = JSON.parse(errText);
+          const match = /try again in ([\d.]+)m([\d.]+)s/i.exec(parsedErr?.error?.message || '');
+          if (match) minutos = Math.ceil(parseFloat(match[1]) + parseFloat(match[2]) / 60);
+        } catch {
+          // Ignorar, dejamos minutos en null
+        }
+        return res.status(429).json({
+          error: minutos
+            ? `Se alcanzó el límite diario de IA por hoy. Intenta de nuevo en unos ${minutos} minutos, o usa el link directo de arriba mientras tanto.`
+            : 'Se alcanzó el límite diario de IA por hoy. Intenta de nuevo más tarde, o usa el link directo de arriba mientras tanto.',
+        });
+      }
+
       throw new Error(`Groq error: ${groqResp.status} ${errText}`);
     }
 
