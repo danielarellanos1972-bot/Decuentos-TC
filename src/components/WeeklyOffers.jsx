@@ -142,7 +142,7 @@ export default function WeeklyOffers({ tarjetas }) {
 
   return (
     <section style={styles.wrap}>
-      <h2 style={styles.h2}>Ofertas diarias en Restaurantes</h2>
+      <h2 style={styles.h2}>Ofertas Diarias en Restaurantes</h2>
       <p style={styles.sub}>Busca, confirma y guarda tus descuentos de Lunes a Domingo por tarjeta.</p>
 
       <div style={styles.filtros}>
