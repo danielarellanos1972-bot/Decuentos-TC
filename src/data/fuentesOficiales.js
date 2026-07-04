@@ -46,7 +46,7 @@ export const FUENTES_OFICIALES = {
       enlaces: [
         { url: 'https://sitiospublicos.bancochile.cl/personas/beneficios/sabores/restaurantes-y-bares', nombre: 'Banco de Chile — Beneficios' },
         {
-          url: 'https://sitiospublicos.bancochile.cl/personas/beneficios/categoria?maincat=beneficios/sabores',
+          url: 'https://sitiospublicos.bancochile.cl/personas/beneficios/sabores?maincat=beneficios%2Fsabores',
           nombre: 'Banco de Chile — Restaurantes y Bares',
           categorias: ['restaurantes'],
         },
@@ -55,6 +55,19 @@ export const FUENTES_OFICIALES = {
   ],
   Santander: [
     {
+      // Amex Limited / WorldMember: página específica AmexForFoodies
+      match: /amex|limited|world\s?member/i,
+      dominio: 'santander.cl',
+      enlaces: [
+        {
+          url: 'https://banco.santander.cl/personas/tarjetas-de-credito/promociones/amexforfoodies',
+          nombre: 'Santander — Amex for Foodies',
+          categorias: ['restaurantes'],
+        },
+      ],
+    },
+    {
+      // Resto de tarjetas Santander
       dominio: 'santander.cl',
       enlaces: [
         { url: 'https://banco.santander.cl/beneficios/descuentos-restaurantes', nombre: 'Santander — Descuentos Restaurantes' },
