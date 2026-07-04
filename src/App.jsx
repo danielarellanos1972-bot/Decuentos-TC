@@ -107,8 +107,6 @@ export default function App() {
           {loading ? 'Buscando…' : `Buscar Oferta ${categoriaSel.emoji}`}
         </button>
 
-        <WeeklyOffers tarjetas={tarjetas} />
-
         <div style={styles.resultsHeader}>
           {tarjetaSel && (
             <p style={styles.resultsContext}>
@@ -132,6 +130,8 @@ export default function App() {
         </div>
 
         <OffersList ofertas={ofertas} loading={loading} error={error} mensaje={mensaje} />
+
+        <WeeklyOffers tarjetas={tarjetas} />
       </main>
 
       <footer style={styles.footer}>
