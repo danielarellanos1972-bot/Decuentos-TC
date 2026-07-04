@@ -3,7 +3,7 @@ import CardManager from './components/CardManager.jsx';
 import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
-import { getFuenteOficial, getLinkPortal } from './data/fuentesOficiales.js';
+import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
 const STORAGE_KEY = 'descuentos-tc-tarjetas';
 
@@ -113,12 +113,16 @@ export default function App() {
           )}
           {tarjetaSel && (() => {
             const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
-            const link = getLinkPortal(fuente, categoriaSel.id);
-            if (!link) return null;
+            const enlaces = getEnlacesPortal(fuente, categoriaSel.id);
+            if (enlaces.length === 0) return null;
             return (
-              <a href={link.url} target="_blank" rel="noreferrer" style={styles.portalLink}>
-                Ir directo a {link.nombre} ↗
-              </a>
+              <div style={styles.portalLinks}>
+                {enlaces.map((e, i) => (
+                  <a key={i} href={e.url} target="_blank" rel="noreferrer" style={styles.portalLink}>
+                    {e.nombre} ↗
+                  </a>
+                ))}
+              </div>
             );
           })()}
         </div>
@@ -151,7 +155,8 @@ const styles = {
     borderRadius: '12px', padding: '15px', fontSize: '1rem', fontWeight: 700, marginBottom: '22px',
   },
   resultsHeader: { marginBottom: '10px' },
-  resultsContext: { fontSize: '0.8rem', opacity: 0.6, margin: '0 0 4px' },
+  resultsContext: { fontSize: '0.8rem', opacity: 0.6, margin: '0 0 6px' },
+  portalLinks: { display: 'flex', flexDirection: 'column', gap: '4px' },
   portalLink: { fontSize: '0.8rem', color: 'var(--mint-300)', textDecoration: 'none' },
   footer: {
     marginTop: '36px', borderTop: '1px solid var(--navy-800)', paddingTop: '16px',
