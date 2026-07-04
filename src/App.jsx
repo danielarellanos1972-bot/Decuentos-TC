@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import CardManager from './components/CardManager.jsx';
 import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
+import WeeklyOffers from './components/WeeklyOffers.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
@@ -96,6 +97,8 @@ export default function App() {
 
         <h2 style={styles.h2}>Categoría</h2>
         <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
+
+        <WeeklyOffers tarjetas={tarjetas} />
 
         <button
           style={styles.searchBtn}
