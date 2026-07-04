@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   const mesActual = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
   const zona = comuna ? `${comuna}, ${region}` : region;
 
-  const query = `descuentos restaurantes lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo`;
+  const query = `descuentos restaurantes gastronomía comida lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo -ropa -tecnología -deporte`;
 
   try {
     const tavilyResp = await fetch('https://api.tavily.com/search', {
@@ -87,6 +87,11 @@ export default async function handler(req, res) {
               `El campo "dia" debe ser exactamente uno de estos valores: ${DIAS_VALIDOS.join(', ')}. ` +
               'Usa "Todos los días" si el descuento aplica todos los días de la semana. ' +
               'Si un dato no aparece explícitamente en el texto, usa "No especificado". No inventes descuentos, días, porcentajes ni topes que no estén en el texto. ' +
+              'REGLAS ESTRICTAS sobre el campo "comercio": ' +
+              '1) Debe ser el NOMBRE PROPIO de un restaurante, cadena, café, bar o servicio de delivery específico (ej: "Sushi One", "Cocina de Javier", "Rappi"). ' +
+              '2) NUNCA uses una categoría genérica como valor de "comercio" (prohibido: "Restaurantes", "Comercios", "Descuentos", "Gastronomía", "Compras", o variantes similares). Si el texto solo menciona el porcentaje aplicable a "restaurantes" en general sin nombrar un comercio específico, DESCARTA esa fila por completo — no la incluyas con un nombre genérico inventado. ' +
+              '3) EXCLUYE cualquier comercio que no sea de rubro gastronómico (comida, bebidas, café, delivery de comida). Ignora explícitamente tiendas de ropa, calzado, deporte, tecnología, farmacias, supermercados u otros rubros, aunque aparezcan en la misma página o listado. ' +
+              '4) Si el mismo comercio aparece mencionado en más de una fuente para el mismo día, inclúyelo UNA SOLA VEZ (no dupliques filas idénticas). ' +
               'Ignora resultados que no correspondan a promociones bancarias reales de restaurantes.',
           },
           {
@@ -130,7 +135,18 @@ export default async function handler(req, res) {
       parsed = { ofertasPorDia: [] };
     }
 
-    const ofertasPorDia = (parsed.ofertasPorDia || []).filter((o) => DIAS_VALIDOS.includes(o.dia));
+    // Filtramos por si Groq devuelve un valor de "dia" fuera de lo esperado
+    const GENERICOS = ['restaurantes', 'comercios', 'descuentos', 'gastronomía', 'compras', 'restaurante', 'comercio'];
+    const vistos = new Set();
+    const ofertasPorDia = (parsed.ofertasPorDia || [])
+      .filter((o) => DIAS_VALIDOS.includes(o.dia))
+      .filter((o) => o.comercio && !GENERICOS.includes(o.comercio.trim().toLowerCase()))
+      .filter((o) => {
+        const clave = `${o.dia}|${o.comercio.trim().toLowerCase()}|${o.descuento}`;
+        if (vistos.has(clave)) return false;
+        vistos.add(clave);
+        return true;
+      });
 
     return res.status(200).json({ ofertasPorDia, consultado: query });
   } catch (err) {
