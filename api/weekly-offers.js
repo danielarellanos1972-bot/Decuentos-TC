@@ -39,7 +39,11 @@ export default async function handler(req, res) {
   const zona = comuna ? `${comuna}, ${region}` : region;
 
   const MAX_CHARS_POR_RESULTADO = 2500;
-  const MIN_CHARS_UTILES = 200; // debajo de esto asumimos que la extracción no trajo nada útil
+  const MIN_CHARS_UTILES = 800; // debajo de esto probablemente es solo menú/navegación, no contenido real
+  // Además del largo, exigimos que aparezca al menos un símbolo de % — si no hay ningún
+  // porcentaje mencionado, es casi seguro que el HTML extraído es solo el "cascarón" de
+  // una página que carga los datos reales por JavaScript (común en portales de bancos).
+  const contenidoEsUtil = (texto) => texto.trim().length >= MIN_CHARS_UTILES && texto.includes('%');
 
   let rawResults = '';
   let fuenteMetodo = 'extract';
@@ -64,7 +68,7 @@ export default async function handler(req, res) {
     }
 
     // 2) Si la extracción no trajo suficiente contenido útil, buscamos como respaldo
-    if (rawResults.trim().length < MIN_CHARS_UTILES) {
+    if (!contenidoEsUtil(rawResults)) {
       fuenteMetodo = 'search';
       const query = `descuentos restaurantes gastronomía comida lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo -ropa -tecnología -deporte`;
 
@@ -123,6 +127,7 @@ export default async function handler(req, res) {
               '2) NUNCA uses una categoría o frase genérica como valor de "comercio". PROHIBIDO usar: "Restaurantes", "Comercios", "Descuentos", "Gastronomía", "Compras", "Restaurantes adheridos a...", "Restaurantes asociados a...", "Comercios participantes", o cualquier variante similar que no sea el nombre propio de un negocio específico. Si el texto solo menciona el porcentaje aplicable a "restaurantes" en general sin nombrar un comercio específico, DESCARTA esa fila por completo — no la incluyas con un nombre genérico inventado. ' +
               '3) EXCLUYE cualquier comercio que no sea de rubro gastronómico (comida, bebidas, café, delivery de comida). Ignora explícitamente tiendas de ropa, calzado, deporte, tecnología, farmacias, supermercados u otros rubros, aunque aparezcan en la misma página o listado. ' +
               '4) Si el mismo comercio aparece mencionado en más de una fuente para el mismo día, inclúyelo UNA SOLA VEZ (no dupliques filas idénticas). ' +
+              '5) Prioriza la exactitud sobre la cantidad: es preferible devolver pocas filas seguras que muchas dudosas. Si no estás razonablemente seguro de que un nombre corresponde a un negocio real y no a una ciudad, región, categoría o palabra suelta del texto, DESCÁRTALO. ' +
               'Ignora resultados que no correspondan a promociones bancarias reales de restaurantes.',
           },
           {
