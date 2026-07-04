@@ -38,7 +38,7 @@ export default async function handler(req, res) {
   const mesActual = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
   const zona = comuna ? `${comuna}, ${region}` : region;
 
-  const MAX_CHARS_POR_RESULTADO = 15000; // páginas como ScotiaRewards/Santander tienen 30-60+ restaurantes listados
+  const MAX_CHARS_POR_RESULTADO = 4000; // páginas como ScotiaRewards/Santander tienen 30-60+ restaurantes listados
   const MIN_CHARS_UTILES = 800; // debajo de esto probablemente es solo menú/navegación, no contenido real
   // Además del largo, exigimos que aparezca al menos un símbolo de % — si no hay ningún
   // porcentaje mencionado, es casi seguro que el HTML extraído es solo el "cascarón" de
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
      body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 1800,
         messages: [
           {
             role: 'system',
