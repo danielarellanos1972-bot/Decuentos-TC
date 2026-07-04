@@ -140,6 +140,12 @@ export default function WeeklyOffers({ tarjetas }) {
 
               {isOpen && (
                 <div style={styles.cardBody}>
+                  {!estado?.loading && (
+                    <button style={styles.refreshBtn} onClick={() => buscarSemanal(t)}>
+                      ↻ Actualizar búsqueda
+                    </button>
+                  )}
+
                   {estado?.loading && (
                     <div style={styles.stateBox}>
                       <div style={styles.spinner} />
@@ -225,6 +231,10 @@ const styles = {
   cardHeaderText: { flex: 1 },
   chevron: { fontSize: '0.75rem', opacity: 0.85, marginLeft: '10px' },
   cardBody: { background: 'var(--navy-800)', padding: '14px' },
+  refreshBtn: {
+    background: 'transparent', border: '1px solid var(--navy-700)', color: 'var(--mint-300)',
+    borderRadius: '8px', padding: '6px 12px', fontSize: '0.78rem', marginBottom: '12px',
+  },
   stateBox: { textAlign: 'center', padding: '20px 12px', opacity: 0.75 },
   spinner: {
     width: '22px', height: '22px', border: '3px solid var(--navy-700)', borderTopColor: 'var(--gold-500)',
