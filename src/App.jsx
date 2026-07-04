@@ -3,7 +3,7 @@ import CardManager from './components/CardManager.jsx';
 import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
-import { getFuenteOficial } from './data/fuentesOficiales.js';
+import { getFuenteOficial, getLinkPortal } from './data/fuentesOficiales.js';
 
 const STORAGE_KEY = 'descuentos-tc-tarjetas';
 
@@ -16,7 +16,6 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
 
-  // Cargar tarjetas guardadas, o precargar las de ejemplo la primera vez
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -53,7 +52,7 @@ export default function App() {
     setMensaje(null);
     setOfertas([]);
     try {
-      const fuente = getFuenteOficial(tarjetaSel.banco);
+      const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
       const resp = await fetch('/api/search-offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,14 +111,13 @@ export default function App() {
               {tarjetaSel.banco} — {tarjetaSel.nombre}
             </p>
           )}
-          {tarjetaSel && getFuenteOficial(tarjetaSel.banco) && (() => {
-            const fuente = getFuenteOficial(tarjetaSel.banco);
-            const usarGeneral = categoriaSel.id !== 'restaurantes' && fuente.urlGeneral;
-            const urlMostrar = usarGeneral ? fuente.urlGeneral : fuente.url;
-            const nombreMostrar = usarGeneral ? `${fuente.nombrePortal.split('—')[0].trim()} — Beneficios generales` : fuente.nombrePortal;
+          {tarjetaSel && (() => {
+            const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
+            const link = getLinkPortal(fuente, categoriaSel.id);
+            if (!link) return null;
             return (
-              <a href={urlMostrar} target="_blank" rel="noreferrer" style={styles.portalLink}>
-                Ir directo a {nombreMostrar} ↗
+              <a href={link.url} target="_blank" rel="noreferrer" style={styles.portalLink}>
+                Ir directo a {link.nombre} ↗
               </a>
             );
           })()}
