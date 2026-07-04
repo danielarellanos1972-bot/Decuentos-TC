@@ -190,12 +190,16 @@ export default function WeeklyOffers({ tarjetas }) {
                 }}
                 onClick={() => toggleCard(t)}
               >
+                <span style={{ ...styles.chip, background: colores.text }} />
                 <span style={styles.cardHeaderText}>
                   {t.banco} — {t.nombre}
                   {confirmadasTarjeta.length > 0 && <span style={styles.badge}> {confirmadasTarjeta.length}</span>}
                 </span>
                 <span style={styles.chevron}>{isOpen ? '▲' : '▼'}</span>
               </button>
+              {colores.accent && (
+                <div style={{ ...styles.headerAccent, background: colores.accent }} />
+              )}
 
               {isOpen && (
                 <div style={styles.cardBody}>
@@ -368,6 +372,11 @@ const styles = {
     textAlign: 'left',
   },
   cardHeaderText: { flex: 1 },
+  chip: {
+    width: '20px', height: '14px', borderRadius: '3px', opacity: 0.85,
+    display: 'inline-block', marginRight: '10px', flexShrink: 0,
+  },
+  headerAccent: { height: '4px' },
   badge: { opacity: 0.8, fontWeight: 400, fontSize: '0.8rem' },
   chevron: { fontSize: '0.75rem', opacity: 0.85, marginLeft: '10px' },
   cardBody: { background: 'var(--navy-800)', padding: '14px' },
