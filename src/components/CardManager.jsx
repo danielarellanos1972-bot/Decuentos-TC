@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BANCOS_CHILE } from '../data/bancos.js';
+import { BANCOS_CHILE, getBankColors } from '../data/bancos.js';
 
 export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, onSelect }) {
   const [showForm, setShowForm] = useState(false);
@@ -45,24 +45,32 @@ export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, o
         )}
         {tarjetas.map((t) => {
           const isActive = seleccionada?.id === t.id;
+          const colores = getBankColors(t.banco);
+          const cardStyle = {
+            ...styles.card,
+            background: `linear-gradient(135deg, ${colores.from}, ${colores.to})`,
+            color: colores.text,
+            ...(isActive ? styles.cardActive : {}),
+          };
           return (
             <div
               key={t.id}
               onClick={() => onSelect(t)}
-              style={{ ...styles.card, ...(isActive ? styles.cardActive : {}) }}
+              style={cardStyle}
             >
+              <div style={styles.cardScrim} />
               <div style={styles.cardTop}>
-                <span style={styles.chip} />
+                <span style={{ ...styles.chip, background: `${colores.text}` }} />
                 <button
-                  style={styles.deleteBtn}
+                  style={{ ...styles.deleteBtn, color: colores.text }}
                   onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
                   aria-label={`Eliminar ${t.nombre}`}
                 >
                   ×
                 </button>
               </div>
-              <p style={styles.cardBanco}>{t.banco}</p>
-              <p style={styles.cardNombre}>{t.nombre}</p>
+              <p style={{ ...styles.cardBanco, color: colores.text }}>{t.banco}</p>
+              <p style={{ ...styles.cardNombre, color: colores.text }}>{t.nombre}</p>
             </div>
           );
         })}
@@ -100,23 +108,27 @@ const styles = {
   },
   empty: { color: 'var(--paper-100)', opacity: 0.6, fontSize: '0.9rem' },
   card: {
-    background: 'linear-gradient(135deg, var(--navy-800), var(--navy-700))',
-    border: '1px solid var(--navy-700)', borderRadius: '14px', padding: '14px',
-    cursor: 'pointer', position: 'relative', transition: 'transform 0.15s, border-color 0.15s',
-    minHeight: '86px',
+    border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '14px',
+    cursor: 'pointer', position: 'relative', transition: 'transform 0.15s, box-shadow 0.15s',
+    minHeight: '86px', overflow: 'hidden',
   },
   cardActive: {
-    borderColor: 'var(--gold-500)', boxShadow: '0 0 0 1px var(--gold-500)',
+    boxShadow: '0 0 0 2px var(--gold-500)',
   },
-  cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
+  cardScrim: {
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.25) 100%)',
+    pointerEvents: 'none',
+  },
+  cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', position: 'relative' },
   chip: {
-    width: '22px', height: '16px', borderRadius: '3px',
-    background: 'linear-gradient(135deg, var(--gold-300), var(--gold-500))', display: 'inline-block',
+    width: '22px', height: '16px', borderRadius: '3px', opacity: 0.85,
+    display: 'inline-block',
   },
   deleteBtn: {
-    background: 'none', border: 'none', color: 'var(--paper-100)', opacity: 0.5,
+    background: 'none', border: 'none', opacity: 0.7,
     fontSize: '1.1rem', lineHeight: 1, padding: '0 4px',
   },
-  cardBanco: { fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.65, margin: '0 0 2px' },
-  cardNombre: { fontSize: '0.92rem', fontWeight: 600, margin: 0 },
+  cardBanco: { fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.85, margin: '0 0 2px', position: 'relative' },
+  cardNombre: { fontSize: '0.92rem', fontWeight: 700, margin: 0, position: 'relative' },
 };
