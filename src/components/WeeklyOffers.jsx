@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { REGIONES_CHILE, REGION_DEFAULT, COMUNAS_RM } from '../data/regionesChile.js';
-import { getFuenteOficial } from '../data/fuentesOficiales.js';
+import { getFuenteOficial, getEnlacesPortal } from '../data/fuentesOficiales.js';
 import { getBankColors } from '../data/bancos.js';
 
 const ORDEN_DIAS = ['Todos los días', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -21,6 +21,9 @@ export default function WeeklyOffers({ tarjetas }) {
 
     try {
       const fuente = getFuenteOficial(tarjeta.banco, tarjeta.nombre);
+      const enlacesRestaurantes = (fuente?.enlaces || []).filter((e) => e.categorias?.includes('restaurantes'));
+      const urlsOficiales = (enlacesRestaurantes.length > 0 ? enlacesRestaurantes : (fuente?.enlaces || [])).map((e) => e.url);
+
       const resp = await fetch('/api/weekly-offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,6 +31,7 @@ export default function WeeklyOffers({ tarjetas }) {
           banco: tarjeta.banco,
           tarjeta: tarjeta.nombre,
           dominioOficial: fuente?.dominio || null,
+          urlsOficiales,
           region,
           comuna: comuna || null,
         }),
