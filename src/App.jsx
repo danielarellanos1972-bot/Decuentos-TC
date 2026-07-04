@@ -17,6 +17,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
 
+  // Cargar tarjetas guardadas, o precargar las de ejemplo la primera vez
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -95,8 +96,6 @@ export default function App() {
           onSelect={setTarjetaSel}
         />
 
-        <WeeklyOffers tarjetas={tarjetas} />
-
         <h2 style={styles.h2}>Categoría</h2>
         <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
 
@@ -107,6 +106,8 @@ export default function App() {
         >
           {loading ? 'Buscando…' : `Buscar Oferta ${categoriaSel.emoji}`}
         </button>
+
+        <WeeklyOffers tarjetas={tarjetas} />
 
         <div style={styles.resultsHeader}>
           {tarjetaSel && (
