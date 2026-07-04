@@ -1,72 +1,91 @@
 // Portales oficiales de beneficios/descuentos por banco en Chile.
-// Muchos bancos publican sus promociones en un dominio DISTINTO al del banco mismo
-// (ej: Scotiabank normal -> ScotiaRewards), Y ADEMÁS distintas tarjetas del mismo banco
-// pueden tener portales distintos (ej: Scotiabank Singular tiene su propio sitio,
-// separado de ScotiaRewards).
 //
 // Estructura: cada banco tiene una lista de "perfiles". Cada perfil puede tener un
 // `match` (regex sobre el nombre de la tarjeta) para aplicar solo a ciertas tarjetas,
 // o no tener `match` para ser el perfil por defecto del banco.
 //
-// Cada perfil puede definir:
-//  - urlGeneral: portal general de beneficios (todas las categorías)
-//  - urlRestaurantes: portal específico de restaurantes/gastronomía (si es distinto del general)
-//  - dominio: dominio a priorizar en la búsqueda (include_domains de Tavily)
-//  - nombrePortal: nombre a mostrar en el botón de acceso directo
+// Cada perfil tiene `enlaces`: una lista de links relevantes (en vez de intentar
+// adivinar "el" link correcto). Cada enlace puede tener `categorias` opcional:
+// si se define, ese enlace solo se muestra cuando la categoría seleccionada está
+// en esa lista. Si no tiene `categorias`, se muestra siempre.
+//
+// `dominio`: dominio a priorizar en la búsqueda web (include_domains de Tavily).
 
 // ✅ Verificadas con búsqueda web real o confirmadas directamente por el usuario.
 export const FUENTES_OFICIALES = {
   Scotiabank: [
     {
       match: /singular/i,
-      urlGeneral: 'https://www.scotiabankchile.cl/singular-by-scotiabank/beneficios',
-      urlRestaurantes: 'https://www.scotiabankchile.cl/singular-by-scotiabank/beneficios',
       dominio: 'scotiabankchile.cl',
-      nombrePortal: 'Singular by Scotiabank — Beneficios',
+      enlaces: [
+        { url: 'https://www.scotiabankchile.cl/singular-by-scotiabank', nombre: 'Singular by Scotiabank — Principal' },
+        { url: 'https://www.scotiabankchile.cl/singular-by-scotiabank/beneficios', nombre: 'Singular by Scotiabank — Beneficios' },
+        {
+          url: 'https://www.scotiarewards.cl/scclubfront/categoria/platosycomida/rutagourmet',
+          nombre: 'ScotiaRewards — Ruta Gourmet',
+          categorias: ['restaurantes'],
+        },
+      ],
     },
     {
       // Perfil por defecto para el resto de tarjetas Scotiabank (no Singular)
-      urlGeneral: 'https://www.scotiarewards.cl',
-      urlRestaurantes: 'https://www.scotiarewards.cl/scclubfront/categoria/platosycomida/rutagourmet',
       dominio: 'scotiarewards.cl',
-      nombrePortal: 'ScotiaRewards — Ruta Gourmet',
+      enlaces: [
+        { url: 'https://www.scotiarewards.cl', nombre: 'ScotiaRewards — Principal' },
+        {
+          url: 'https://www.scotiarewards.cl/scclubfront/categoria/platosycomida/rutagourmet',
+          nombre: 'ScotiaRewards — Ruta Gourmet',
+          categorias: ['restaurantes'],
+        },
+      ],
     },
   ],
   'Banco de Chile / Edwards': [
     {
-      urlGeneral: 'https://sitiospublicos.bancochile.cl/personas/beneficios/sabores/restaurantes-y-bares',
-      urlRestaurantes: 'https://sitiospublicos.bancochile.cl/personas/beneficios/categoria?maincat=beneficios/sabores',
       dominio: 'bancochile.cl',
-      nombrePortal: 'Banco de Chile — Beneficios',
+      enlaces: [
+        { url: 'https://sitiospublicos.bancochile.cl/personas/beneficios/sabores/restaurantes-y-bares', nombre: 'Banco de Chile — Beneficios' },
+        {
+          url: 'https://sitiospublicos.bancochile.cl/personas/beneficios/categoria?maincat=beneficios/sabores',
+          nombre: 'Banco de Chile — Restaurantes y Bares',
+          categorias: ['restaurantes'],
+        },
+      ],
     },
   ],
   Santander: [
     {
-      urlGeneral: 'https://banco.santander.cl/beneficios/descuentos-restaurantes',
       dominio: 'santander.cl',
-      nombrePortal: 'Santander — Descuentos Restaurantes',
+      enlaces: [
+        { url: 'https://banco.santander.cl/beneficios/descuentos-restaurantes', nombre: 'Santander — Descuentos Restaurantes' },
+      ],
     },
   ],
   BCI: [
     {
-      urlGeneral: 'https://www.bci.cl/beneficios',
       dominio: 'bci.cl',
-      nombrePortal: 'Beneficios Bci',
+      enlaces: [{ url: 'https://www.bci.cl/beneficios', nombre: 'Beneficios Bci' }],
     },
   ],
   'Falabella (CMR)': [
     {
-      urlGeneral: 'https://www.bancofalabella.cl/descuentos',
       dominio: 'bancofalabella.cl',
-      nombrePortal: 'Descuentos Banco Falabella / Club de Restaurantes CMR',
+      enlaces: [
+        { url: 'https://www.bancofalabella.cl/descuentos', nombre: 'Descuentos Banco Falabella / Club de Restaurantes CMR' },
+      ],
     },
   ],
   Itaú: [
     {
-      urlGeneral: 'https://itaubeneficios.cl/beneficios-tarjeta/tarjeta-black/',
-      urlRestaurantes: 'https://itaubeneficios.cl/ruta-gourmet-black/',
       dominio: 'itaubeneficios.cl',
-      nombrePortal: 'Itaú Beneficios — Tarjeta Black',
+      enlaces: [
+        { url: 'https://itaubeneficios.cl/beneficios-tarjeta/tarjeta-black/', nombre: 'Itaú — Beneficios Tarjeta Black' },
+        {
+          url: 'https://itaubeneficios.cl/ruta-gourmet-black/',
+          nombre: 'Itaú — Ruta Gourmet Black',
+          categorias: ['restaurantes'],
+        },
+      ],
     },
   ],
   // ⚠️ Pendientes de verificar: BancoEstado y Ripley no tienen portal confirmado
@@ -87,13 +106,9 @@ export function getFuenteOficial(banco, tarjetaNombre = '') {
   return perfiles.find((p) => !p.match) || perfiles[0] || null;
 }
 
-// Dada una categoría seleccionada, devuelve la URL más adecuada y su nombre a mostrar.
-export function getLinkPortal(fuente, categoriaId) {
-  if (!fuente) return null;
-  const esRestaurantes = categoriaId === 'restaurantes';
-  const url = (esRestaurantes && fuente.urlRestaurantes) || fuente.urlGeneral || fuente.urlRestaurantes;
-  if (!url) return null;
-
-  const sufijo = esRestaurantes && fuente.urlRestaurantes ? ' — Restaurantes' : '';
-  return { url, nombre: `${fuente.nombrePortal}${sufijo}` };
+// Dada una fuente y una categoría seleccionada, devuelve la lista de enlaces
+// relevantes a mostrar (los generales + los específicos de esa categoría).
+export function getEnlacesPortal(fuente, categoriaId) {
+  if (!fuente || !fuente.enlaces) return [];
+  return fuente.enlaces.filter((e) => !e.categorias || e.categorias.includes(categoriaId));
 }
