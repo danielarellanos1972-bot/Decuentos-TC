@@ -185,6 +185,7 @@ export default async function handler(req, res) {
       /^gastronom[ií]a\b/i,
       /^compras?\b/i,
       /^ruta\s+gourmet\b/i,      // nombre de la promoción, no de un comercio
+      /^no\s+especificad[oa]\b/i, // el modelo no supo el nombre real — no mostrarlo como si lo fuera
       /adherid[oa]s?\s+a/i,      // "...adheridos a la promoción..."
       /asociad[oa]s?\s+a/i,      // "...asociados a Transbank..."
       /participantes?\b/i,
