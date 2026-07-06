@@ -1,4 +1,4 @@
-  // Vercel Serverless Function
+// Vercel Serverless Function
 // POST /api/weekly-offers
 // body: { banco, tarjeta, dominioOficial, urlsOficiales, region, comuna }
 //
@@ -38,18 +38,14 @@ export default async function handler(req, res) {
   const mesActual = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
   const zona = comuna ? `${comuna}, ${region}` : region;
 
-  const MAX_CHARS_POR_RESULTADO = 4000; // páginas como ScotiaRewards/Santander tienen 30-60+ restaurantes listados
+  const MAX_CHARS_POR_RESULTADO = 3000; // margen de seguridad extra bajo el límite de 6.000 tokens/minuto
   const MIN_CHARS_UTILES = 800; // debajo de esto probablemente es solo menú/navegación, no contenido real
-  // Además del largo, exigimos que aparezca al menos un símbolo de % — si no hay ningún
-  // porcentaje mencionado, es casi seguro que el HTML extraído es solo el "cascarón" de
-  // una página que carga los datos reales por JavaScript (común en portales de bancos).
   const contenidoEsUtil = (texto) => texto.trim().length >= MIN_CHARS_UTILES && texto.includes('%');
 
   let rawResults = '';
   let fuenteMetodo = 'extract';
 
   try {
-    // 1) Intentamos leer directamente las URLs oficiales conocidas (máx. 2, para controlar costo)
     const urls = (urlsOficiales || []).slice(0, 2);
 
     if (urls.length > 0) {
@@ -67,13 +63,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2) Si la extracción no trajo suficiente contenido útil, buscamos como respaldo.
-    // IMPORTANTE: aquí NO restringimos por dominio oficial. Si ya intentamos extraer ese
-    // dominio y falló (típico de sitios que cargan todo con JavaScript, como ScotiaRewards),
-    // restringir la búsqueda de respaldo al mismo dominio solo repetiría el mismo problema
-    // — Tavily indexaría lo mismo (poco) que ya sabemos que no sirve. En vez de eso, buscamos
-    // en toda la web: blogs, medios, o páginas de terceros que puedan describir la promoción
-    // con más detalle que el sitio oficial.
     if (!contenidoEsUtil(rawResults)) {
       fuenteMetodo = 'search';
       const query = `descuentos restaurantes gastronomía comida lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo -ropa -tecnología -deporte`;
@@ -113,10 +102,10 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${GROQ_API_KEY}`,
       },
-     body: JSON.stringify({
+      body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         temperature: 0.1,
-        max_tokens: 1800,
+        max_tokens: 1500,
         messages: [
           {
             role: 'system',
@@ -149,17 +138,20 @@ export default async function handler(req, res) {
 
       if (groqResp.status === 429) {
         let minutos = null;
+        let detalle = '';
         try {
           const parsedErr = JSON.parse(errText);
-          const match = /try again in ([\d.]+)m([\d.]+)s/i.exec(parsedErr?.error?.message || '');
+          const msg = parsedErr?.error?.message || '';
+          detalle = msg;
+          const match = /try again in ([\d.]+)m([\d.]+)s/i.exec(msg);
           if (match) minutos = Math.ceil(parseFloat(match[1]) + parseFloat(match[2]) / 60);
         } catch {
-          // Ignorar, dejamos minutos en null
+          detalle = errText;
         }
         return res.status(429).json({
           error: minutos
-            ? `Se alcanzó el límite diario de IA por hoy. Intenta de nuevo en unos ${minutos} minutos.`
-            : 'Se alcanzó el límite diario de IA por hoy. Intenta de nuevo más tarde.',
+            ? `Límite de Groq alcanzado. Intenta de nuevo en unos ${minutos} minutos. (${detalle})`
+            : `Límite de Groq alcanzado. (${detalle})`,
         });
       }
 
@@ -177,25 +169,20 @@ export default async function handler(req, res) {
       parsed = { ofertasPorDia: [] };
     }
 
-    // Filtramos por si Groq devuelve un valor de "dia" fuera de lo esperado, o un
-    // "comercio" que en realidad es una frase genérica (no un nombre propio real).
     const PATRONES_GENERICOS = [
-      /^restaurantes?\b/i,       // "Restaurantes", "Restaurante adherido..."
-      /^comercios?\b/i,          // "Comercios asociados..."
+      /^restaurantes?\b/i,
+      /^comercios?\b/i,
       /^descuentos?\b/i,
       /^gastronom[ií]a\b/i,
       /^compras?\b/i,
-      /^ruta\s+gourmet\b/i,      // nombre de la promoción, no de un comercio
-      /^no\s+especificad[oa]\b/i, // el modelo no supo el nombre real — no mostrarlo como si lo fuera
-      /adherid[oa]s?\s+a/i,      // "...adheridos a la promoción..."
-      /asociad[oa]s?\s+a/i,      // "...asociados a Transbank..."
+      /^ruta\s+gourmet\b/i,
+      /^no\s+especificad[oa]\b/i,
+      /adherid[oa]s?\s+a/i,
+      /asociad[oa]s?\s+a/i,
       /participantes?\b/i,
     ];
     const esGenerico = (nombre) => PATRONES_GENERICOS.some((rx) => rx.test(nombre.trim()));
 
-    // Respaldo determinístico (no depende de que el modelo de IA siga la instrucción):
-    // marcas conocidas que NO son de rubro gastronómico, y ciudades/regiones que a veces
-    // el modelo confunde con el nombre de un comercio.
     const MARCAS_NO_GASTRONOMICAS = [
       'hush puppies', 'rockford', 'under armour', 'adidas', 'nike', 'puma', 'reebok',
       'columbia', 'doite', 'falabella', 'ripley', 'paris', 'la polar', 'sodimac',
