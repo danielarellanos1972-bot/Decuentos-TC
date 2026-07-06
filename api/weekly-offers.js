@@ -137,21 +137,25 @@ export default async function handler(req, res) {
       const errText = await groqResp.text();
 
       if (groqResp.status === 429) {
-        let minutos = null;
+        let segundosEspera = null;
         let detalle = '';
         try {
           const parsedErr = JSON.parse(errText);
           const msg = parsedErr?.error?.message || '';
           detalle = msg;
-          const match = /try again in ([\d.]+)m([\d.]+)s/i.exec(msg);
-          if (match) minutos = Math.ceil(parseFloat(match[1]) + parseFloat(match[2]) / 60);
+          const match = /try again in (?:([\d.]+)m)?([\d.]+)s/i.exec(msg);
+          if (match) {
+            const minutosParte = match[1] ? parseFloat(match[1]) * 60 : 0;
+            segundosEspera = Math.ceil(minutosParte + parseFloat(match[2]));
+          }
         } catch {
           detalle = errText;
         }
         return res.status(429).json({
-          error: minutos
-            ? `Límite de Groq alcanzado. Intenta de nuevo en unos ${minutos} minutos. (${detalle})`
+          error: segundosEspera
+            ? `Límite de Groq alcanzado por unos segundos. Reintentando automáticamente…`
             : `Límite de Groq alcanzado. (${detalle})`,
+          retryAfterSegundos: segundosEspera,
         });
       }
 
