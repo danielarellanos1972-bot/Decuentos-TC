@@ -45,21 +45,34 @@ export default async function handler(req, res) {
   let rawResults = '';
   let fuenteMetodo = 'extract';
 
+  // Ponemos límite de tiempo a cada llamada externa: si una página tarda demasiado en
+  // responder, preferimos pasar al siguiente método antes que dejar que Vercel mate
+  // la función completa por exceder su límite de tiempo (lo que da un error confuso).
+  const fetchConTimeout = (url, options, timeoutMs) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  };
+
   try {
     const urls = (urlsOficiales || []).slice(0, 2);
 
     if (urls.length > 0) {
-      const extractResp = await fetch('https://api.tavily.com/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: TAVILY_API_KEY, urls, extract_depth: 'advanced' }),
-      });
+      try {
+        const extractResp = await fetchConTimeout('https://api.tavily.com/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: TAVILY_API_KEY, urls, extract_depth: 'advanced' }),
+        }, 4500);
 
-      if (extractResp.ok) {
-        const extractData = await extractResp.json();
-        rawResults = (extractData.results || [])
-          .map((r, i) => `[Fuente ${i + 1}] ${r.url}\nContenido: ${(r.raw_content || '').slice(0, MAX_CHARS_POR_RESULTADO)}`)
-          .join('\n\n');
+        if (extractResp.ok) {
+          const extractData = await extractResp.json();
+          rawResults = (extractData.results || [])
+            .map((r, i) => `[Fuente ${i + 1}] ${r.url}\nContenido: ${(r.raw_content || '').slice(0, MAX_CHARS_POR_RESULTADO)}`)
+            .join('\n\n');
+        }
+      } catch {
+        // Extracción demasiado lenta o falló — seguimos al respaldo de búsqueda.
       }
     }
 
@@ -67,16 +80,16 @@ export default async function handler(req, res) {
       fuenteMetodo = 'search';
       const query = `descuentos restaurantes gastronomía comida lunes a domingo ${tarjeta ? tarjeta + ' ' : ''}${banco} ${zona} Chile ${mesActual} tope máximo -ropa -tecnología -deporte`;
 
-      const tavilyResp = await fetch('https://api.tavily.com/search', {
+      const tavilyResp = await fetchConTimeout('https://api.tavily.com/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: TAVILY_API_KEY,
           query,
-          search_depth: 'advanced',
+          search_depth: 'basic',
           max_results: 6,
         }),
-      });
+      }, 4000);
 
       if (!tavilyResp.ok) {
         const errText = await tavilyResp.text();
