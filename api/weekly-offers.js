@@ -133,20 +133,21 @@ export default async function handler(req, res) {
       }),
     });
 
-    if (!groqResp.ok) {
-      const errText = await groqResp.text();
-
-      if (groqResp.status === 429) {
+if (groqResp.status === 429) {
         let segundosEspera = null;
         let detalle = '';
         try {
           const parsedErr = JSON.parse(errText);
           const msg = parsedErr?.error?.message || '';
           detalle = msg;
-          const match = /try again in (?:([\d.]+)m)?([\d.]+)s/i.exec(msg);
-          if (match) {
-            const minutosParte = match[1] ? parseFloat(match[1]) * 60 : 0;
-            segundosEspera = Math.ceil(minutosParte + parseFloat(match[2]));
+          // Groq puede mandar "in 1m30s", "in 9.18s", o incluso "in 539ms" — cubrimos los tres formatos.
+          const matchMinSeg = /try again in (?:([\d.]+)m)?([\d.]+)s\b/i.exec(msg);
+          const matchMs = /try again in ([\d.]+)ms\b/i.exec(msg);
+          if (matchMinSeg) {
+            const minutosParte = matchMinSeg[1] ? parseFloat(matchMinSeg[1]) * 60 : 0;
+            segundosEspera = Math.ceil(minutosParte + parseFloat(matchMinSeg[2]));
+          } else if (matchMs) {
+            segundosEspera = Math.max(1, Math.ceil(parseFloat(matchMs[1]) / 1000));
           }
         } catch {
           detalle = errText;
