@@ -21,16 +21,10 @@ export default function WeeklyOffers({ tarjetas }) {
   const [comuna, setComuna] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  // Ofertas que el usuario confirmó como reales — persisten en el celular.
-  // Forma: { [tarjetaId]: [{ dia, comercio, descuento, tope, comuna, fuenteUrl }] }
   const [confirmadas, setConfirmadas] = useState(() => cargarJSON(CONFIRMADAS_KEY, {}));
-  // Nombres de comercio que el usuario ya rechazó por tarjeta — para no volver a
-  // mostrarlos si la búsqueda los trae de nuevo. Forma: { [tarjetaId]: ["nombre1", ...] }
   const [descartadas, setDescartadas] = useState(() => cargarJSON(DESCARTADAS_KEY, {}));
 
-  // Resultados recién buscados, pendientes de que el usuario los confirme o descarte.
-  // No se guardan — viven solo mientras la app está abierta.
-  const [pendientes, setPendientes] = useState({}); // { [tarjetaId]: { loading, error, items } }
+  const [pendientes, setPendientes] = useState({});
 
   const [formularioAbiertoId, setFormularioAbiertoId] = useState(null);
   const [formulario, setFormulario] = useState({ dia: 'Todos los días', comercio: '', descuento: '', tope: '', comuna: '' });
@@ -45,8 +39,14 @@ export default function WeeklyOffers({ tarjetas }) {
 
   const esRM = region === REGION_DEFAULT;
 
-  const buscarNuevas = async (tarjeta) => {
-    setPendientes((prev) => ({ ...prev, [tarjeta.id]: { loading: true, error: null, items: [] } }));
+  const buscarNuevas = async (tarjeta, esReintento = false) => {
+    setPendientes((prev) => ({
+      ...prev,
+      [tarjeta.id]: {
+        loading: true, error: null, items: [],
+        mensaje: esReintento ? 'Reintentando automáticamente…' : null,
+      },
+    }));
 
     try {
       const fuente = getFuenteOficial(tarjeta.banco, tarjeta.nombre);
@@ -66,9 +66,19 @@ export default function WeeklyOffers({ tarjetas }) {
         }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Error buscando ofertas semanales');
 
-      // Filtramos: nada que ya esté confirmado o descartado para esta tarjeta.
+      if (!resp.ok) {
+        if (!esReintento && data.retryAfterSegundos) {
+          setPendientes((prev) => ({
+            ...prev,
+            [tarjeta.id]: { loading: true, error: null, items: [], mensaje: `Esperando ${data.retryAfterSegundos}s para reintentar…` },
+          }));
+          setTimeout(() => buscarNuevas(tarjeta, true), (data.retryAfterSegundos + 1) * 1000);
+          return;
+        }
+        throw new Error(data.error || 'Error buscando ofertas semanales');
+      }
+
       const yaConfirmadas = confirmadas[tarjeta.id] || [];
       const yaDescartadas = (descartadas[tarjeta.id] || []).map((n) => n.toLowerCase());
 
@@ -203,7 +213,6 @@ export default function WeeklyOffers({ tarjetas }) {
 
               {isOpen && (
                 <div style={styles.cardBody}>
-                  {/* Ofertas confirmadas guardadas */}
                   {confirmadasTarjeta.length === 0 ? (
                     <p style={styles.stateText}>Aún no tienes ofertas confirmadas para esta tarjeta.</p>
                   ) : (
@@ -217,7 +226,6 @@ export default function WeeklyOffers({ tarjetas }) {
                     />
                   )}
 
-                  {/* Formulario manual */}
                   <div style={styles.accionesRow}>
                     <button
                       style={styles.secondaryBtn}
@@ -267,11 +275,10 @@ export default function WeeklyOffers({ tarjetas }) {
                     </div>
                   )}
 
-                  {/* Resultados pendientes de revisión */}
                   {pendiente?.loading && (
                     <div style={styles.stateBox}>
                       <div style={styles.spinner} />
-                      <p style={styles.stateText}>Buscando ofertas nuevas…</p>
+                      <p style={styles.stateText}>{pendiente?.mensaje || 'Buscando ofertas nuevas…'}</p>
                     </div>
                   )}
 
