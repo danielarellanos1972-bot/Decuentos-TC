@@ -133,14 +133,16 @@ export default async function handler(req, res) {
       }),
     });
 
-if (groqResp.status === 429) {
+    if (!groqResp.ok) {
+      const errText = await groqResp.text();
+
+      if (groqResp.status === 429) {
         let segundosEspera = null;
         let detalle = '';
         try {
           const parsedErr = JSON.parse(errText);
           const msg = parsedErr?.error?.message || '';
           detalle = msg;
-          // Groq puede mandar "in 1m30s", "in 9.18s", o incluso "in 539ms" — cubrimos los tres formatos.
           const matchMinSeg = /try again in (?:([\d.]+)m)?([\d.]+)s\b/i.exec(msg);
           const matchMs = /try again in ([\d.]+)ms\b/i.exec(msg);
           if (matchMinSeg) {
