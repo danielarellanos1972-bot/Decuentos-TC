@@ -3,7 +3,7 @@ import CardManager from './components/CardManager.jsx';
 import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
 import WeeklyOffers from './components/WeeklyOffers.jsx';
-import { DateFXPanel, MarketPanel } from './components/InfoPanels.jsx';
+import { DateFXPanel, MarketPanel, WeatherPanel } from './components/InfoPanels.jsx';
 import Ticker from './components/Ticker.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
@@ -145,8 +145,9 @@ export default function App() {
             <p>Los resultados provienen de búsqueda web en tiempo real y pueden variar. Verifica siempre en la app o sitio oficial de tu banco antes de usar el beneficio.</p>
           </footer>
         </div>
-        <aside className="side-panel">
+        <aside className="side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <MarketPanel />
+          <WeatherPanel />
         </aside>
       </div>
     </>
