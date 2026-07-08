@@ -61,7 +61,7 @@ a:focus-visible {
   padding: 24px 16px;
 }
 .side-panel {
-  width: 240px;
+  width: 260px;
   flex-shrink: 0;
   position: sticky;
   top: 24px;
