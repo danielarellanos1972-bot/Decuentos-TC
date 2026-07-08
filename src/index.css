@@ -90,9 +90,6 @@ a:focus-visible {
   background: var(--navy-900);
   border-bottom: 1px solid var(--navy-700);
   padding: 8px 16px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
 }
 .ticker-track {
   display: flex;
