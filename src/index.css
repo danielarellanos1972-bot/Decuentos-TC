@@ -50,7 +50,7 @@ a:focus-visible {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
-/* --- Paneles laterales (fecha/UF/UTM/USD/CAD, mercado, clima) --- */
+/* --- Paneles laterales (fecha/UF/UTM/USD/CAD, mercado, clima, hora mundial) --- */
 .layout-shell {
   display: flex;
   justify-content: center;
@@ -80,7 +80,7 @@ a:focus-visible {
   }
 }
 
-/* --- Cinta animada (ticker) para mobile: indicadores + clima --- */
+/* --- Cinta animada (ticker) para mobile: indicadores + clima + hora mundial --- */
 .ticker-wrap {
   display: none;
   overflow: hidden;
@@ -95,9 +95,6 @@ a:focus-visible {
   display: inline-block;
   white-space: nowrap;
   animation: ticker-scroll 32s linear infinite;
-}
-.ticker-wrap:hover .ticker-track {
-  animation-play-state: paused;
 }
 @keyframes ticker-scroll {
   from { transform: translateX(0); }
