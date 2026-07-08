@@ -3,7 +3,7 @@ import CardManager from './components/CardManager.jsx';
 import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
 import WeeklyOffers from './components/WeeklyOffers.jsx';
-import { DateFXPanel, MarketPanel, WeatherPanel } from './components/InfoPanels.jsx';
+import { DateFXPanel, MarketPanel, WeatherPanel, WorldClockPanel } from './components/InfoPanels.jsx';
 import Ticker from './components/Ticker.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
@@ -148,6 +148,7 @@ export default function App() {
         </div>
         <aside className="side-panel side-panel-stack">
           <WeatherPanel />
+          <WorldClockPanel />
         </aside>
       </div>
     </>
