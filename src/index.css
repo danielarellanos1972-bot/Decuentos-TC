@@ -12,33 +12,26 @@
   --paper-100: #F4EFE6;
   --paper-050: #FAF7F1;
   --ink-900: #12181C;
-
   --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
-
   color-scheme: dark;
 }
-
 * { box-sizing: border-box; }
-
 html, body, #root {
   margin: 0;
   min-height: 100%;
   background: var(--navy-950);
 }
-
 body {
   font-family: var(--font-body);
   color: var(--paper-100);
   -webkit-font-smoothing: antialiased;
 }
-
 button {
   font-family: inherit;
   cursor: pointer;
 }
-
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -46,20 +39,18 @@ a:focus-visible {
   outline: 2px solid var(--gold-300);
   outline-offset: 2px;
 }
-
 ::selection {
   background: var(--gold-500);
   color: var(--navy-950);
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
-/* --- Paneles laterales (fecha/UF/UTM/USD/CAD e IPSA/IPC) --- */
+
+/* --- Paneles laterales (fecha/UF/UTM/USD/CAD, mercado, clima) --- */
 .layout-shell {
   display: flex;
   justify-content: center;
@@ -75,13 +66,20 @@ a:focus-visible {
   position: sticky;
   top: 24px;
 }
+.side-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
 /* En pantallas angostas (celular/tablet) se ocultan los paneles laterales
-   para no romper el diseño mobile-first original de la app. */
+   para no romper el diseño mobile-first original de la app. El !important
+   es necesario porque nada más en la app debe poder ganarle a esta regla. */
 @media (max-width: 1100px) {
   .side-panel {
-    display: none;
+    display: none !important;
   }
 }
+
 /* --- Cinta animada (ticker) para mobile: indicadores + clima --- */
 .ticker-wrap {
   display: none;
@@ -106,9 +104,7 @@ a:focus-visible {
   to { transform: translateX(-50%); }
 }
 @media (max-width: 1100px) {
-  .ticker-wrap { display: block; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ticker-track { animation: none; }
-  .ticker-wrap { overflow-x: auto; }
+  .ticker-wrap {
+    display: block;
+  }
 }
