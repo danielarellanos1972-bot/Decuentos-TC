@@ -105,3 +105,14 @@ a:focus-visible {
     display: block;
   }
 }
+/* La regla global de 'reducir movimiento' (arriba, cerca del inicio del
+   archivo) fuerza duración casi 0 en todas las animaciones cuando el
+   dispositivo tiene esa preferencia de accesibilidad activada. Eso rompe
+   la cinta (queda "parpadeando" en vez de deslizarse), así que para ESTE
+   elemento puntual se restaura la duración normal — es información, no
+   una animación decorativa. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation-duration: 32s !important;
+  }
+}
