@@ -37,6 +37,7 @@ export default function Ticker() {
     items.push(`🇨🇱 UF $${fmt(market.uf?.valor)}`);
     items.push(`🇨🇱 UTM $${fmt(market.utm?.valor)}`);
     items.push(`🇺🇸 USD $${fmt(market.usd?.valor)}`);
+    if (market.eur?.valor) items.push(`🇪🇺 EUR $${fmt(market.eur.valor)}`);
     if (market.cad?.valor) items.push(`🇨🇦 CAD $${fmt(market.cad.valor)}`);
     (market.indices || []).forEach((idx) => {
       if (idx.valor != null) items.push(`📈 ${idx.label} ${fmt(idx.valor)} (${fmtPct(idx.variacion)})`);
