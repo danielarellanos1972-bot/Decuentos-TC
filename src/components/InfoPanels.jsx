@@ -211,20 +211,24 @@ export function WeatherPanel() {
         <div style={styles.weatherList}>
           {data.ubicaciones.map((u, i) => (
             <div key={i} style={styles.weatherRow}>
-              <span style={styles.weatherIcon}>{u.error ? '—' : u.icono}</span>
-              <div style={styles.weatherInfo}>
-                <p style={styles.weatherPlace}>{u.nombre}</p>
-                {u.error ? (
+              <button style={styles.removeBtnCorner} onClick={() => quitarUbicacion(u.nombre)} title="Quitar">✕</button>
+              {u.error ? (
+                <>
+                  <span style={styles.weatherIcon}>—</span>
+                  <p style={styles.weatherPlace}>{u.nombre}</p>
                   <p style={styles.weatherDesc}>No disponible</p>
-                ) : (
-                  <>
-                    <p style={styles.weatherDesc}>{u.texto}</p>
-                    <p style={styles.weatherMinMax}>Mín. {u.min}° · Máx. {u.max}°</p>
-                  </>
-                )}
-              </div>
-              {!u.error && <span style={styles.weatherTemp}>{u.temp}°</span>}
-              <button style={styles.removeBtn} onClick={() => quitarUbicacion(u.nombre)} title="Quitar">✕</button>
+                </>
+              ) : (
+                <>
+                  <div style={styles.weatherTopLine}>
+                    <span style={styles.weatherIcon}>{u.icono}</span>
+                    <span style={styles.weatherTemp}>{u.temp}°</span>
+                  </div>
+                  <p style={styles.weatherPlace}>{u.nombre}</p>
+                  <p style={styles.weatherDesc}>{u.texto}</p>
+                  <p style={styles.weatherMinMax}>Mín {u.min}° · Máx {u.max}°</p>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -318,12 +322,10 @@ export function WorldClockPanel() {
       <div style={styles.weatherList}>
         {relojes.map((r, i) => (
           <div key={i} style={styles.weatherRow}>
-            <div style={styles.weatherInfo}>
-              <p style={styles.weatherPlace}>{r.nombre}</p>
-              <p style={styles.weatherDesc}>{formatearFecha(r.tz)}</p>
-            </div>
+            <button style={styles.removeBtnCorner} onClick={() => quitarReloj(r.nombre)} title="Quitar">✕</button>
             <span style={styles.clockTemp}>{formatearHora(r.tz)}</span>
-            <button style={styles.removeBtn} onClick={() => quitarReloj(r.nombre)} title="Quitar">✕</button>
+            <p style={styles.weatherPlace}>{r.nombre}</p>
+            <p style={styles.weatherDesc}>{formatearFecha(r.tz)}</p>
           </div>
         ))}
       </div>
@@ -416,66 +418,73 @@ const styles = {
     lineHeight: 1.4,
   },
   weatherList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px',
   },
   weatherRow: {
+    position: 'relative',
+    background: 'var(--navy-800)',
+    borderRadius: '10px',
+    padding: '10px 8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1px',
+  },
+  weatherTopLine: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '8px 0',
-    borderBottom: '1px solid var(--navy-800)',
+    justifyContent: 'space-between',
+    marginBottom: '2px',
   },
   weatherIcon: {
-    fontSize: '1.8rem',
+    fontSize: '1.3rem',
     lineHeight: 1,
-    flexShrink: 0,
-  },
-  weatherInfo: {
-    flex: 1,
-    minWidth: 0,
   },
   weatherPlace: {
-    fontSize: '0.8rem',
+    fontSize: '0.72rem',
     fontWeight: 600,
     color: 'var(--paper-050)',
-    margin: '0 0 2px',
+    margin: '2px 0 1px',
+    lineHeight: 1.25,
   },
   weatherDesc: {
-    fontSize: '0.72rem',
+    fontSize: '0.64rem',
     opacity: 0.7,
-    margin: '0 0 2px',
+    margin: '0 0 1px',
+    lineHeight: 1.25,
   },
   weatherMinMax: {
     fontFamily: 'var(--font-mono)',
-    fontSize: '0.68rem',
+    fontSize: '0.6rem',
     opacity: 0.55,
     margin: 0,
   },
   weatherTemp: {
     fontFamily: 'var(--font-mono)',
-    fontSize: '1.15rem',
+    fontSize: '0.95rem',
     fontWeight: 700,
     color: 'var(--gold-300)',
-    flexShrink: 0,
   },
   clockTemp: {
     fontFamily: 'var(--font-mono)',
-    fontSize: '1.05rem',
+    fontSize: '1rem',
     fontWeight: 700,
     color: 'var(--mint-300)',
-    flexShrink: 0,
+    margin: '2px 0 1px',
   },
-  removeBtn: {
+  removeBtnCorner: {
+    position: 'absolute',
+    top: '4px',
+    right: '4px',
     background: 'transparent',
     border: 'none',
     color: 'var(--paper-100)',
-    opacity: 0.4,
-    fontSize: '0.75rem',
+    opacity: 0.35,
+    fontSize: '0.65rem',
     cursor: 'pointer',
-    flexShrink: 0,
-    padding: '2px 4px',
+    padding: '2px',
+    lineHeight: 1,
   },
   addRow: {
     display: 'flex',
