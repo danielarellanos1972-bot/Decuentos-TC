@@ -47,7 +47,7 @@ a:focus-visible {
   to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  *:not(.ticker-track) { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
 /* --- Paneles laterales (fecha/UF/UTM/USD/CAD, mercado, clima, hora mundial) --- */
@@ -86,7 +86,7 @@ a:focus-visible {
   overflow: hidden;
   background: var(--navy-900);
   border-bottom: 1px solid var(--navy-700);
-  padding: 8px 0;
+  padding: 8px 16px;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -103,16 +103,5 @@ a:focus-visible {
 @media (max-width: 1100px) {
   .ticker-wrap {
     display: block;
-  }
-}
-/* La regla global de 'reducir movimiento' (arriba, cerca del inicio del
-   archivo) fuerza duración casi 0 en todas las animaciones cuando el
-   dispositivo tiene esa preferencia de accesibilidad activada. Eso rompe
-   la cinta (queda "parpadeando" en vez de deslizarse), así que para ESTE
-   elemento puntual se restaura la duración normal — es información, no
-   una animación decorativa. */
-@media (prefers-reduced-motion: reduce) {
-  .ticker-track {
-    animation-duration: 32s !important;
   }
 }
