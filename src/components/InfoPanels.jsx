@@ -103,6 +103,7 @@ export function DateFXPanel() {
           <Row label="🇨🇱 UF" value={`$${fmtCLP(data.uf?.valor)}`} />
           <Row label="🇨🇱 UTM" value={`$${fmtCLP(data.utm?.valor)}`} />
           <Row label="🇺🇸 Dólar (USD)" value={`$${fmtCLP(data.usd?.valor)}`} />
+          <Row label="🇪🇺 Euro" value={data.eur?.valor ? `$${fmtCLP(data.eur.valor)}` : 'No disponible'} />
           <Row label="🇨🇦 Dólar Can. (CAD)" value={data.cad?.valor ? `$${fmtCLP(data.cad.valor)}` : 'No disponible'} />
         </>
       )}
