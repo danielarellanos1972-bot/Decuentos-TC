@@ -4,6 +4,7 @@ import CategoryFilter from './components/CategoryFilter.jsx';
 import OffersList from './components/OffersList.jsx';
 import WeeklyOffers from './components/WeeklyOffers.jsx';
 import { DateFXPanel, MarketPanel } from './components/InfoPanels.jsx';
+import Ticker from './components/Ticker.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
@@ -18,7 +19,6 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
 
-  // Cargar tarjetas guardadas, o precargar las de ejemplo la primera vez
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -81,72 +81,75 @@ export default function App() {
   };
 
   return (
-    <div className="layout-shell">
-      <aside className="side-panel">
-        <DateFXPanel />
-      </aside>
-      <div style={styles.page}>
-        <header style={styles.header}>
-          <p style={styles.eyebrow}>Descuentos con Tarjeta · Chile</p>
-          <h1 style={styles.h1}>Beneficios TC</h1>
-          <p style={styles.sub}>Descuentos vigentes en restaurantes y comercios, por banco y tarjeta.</p>
-        </header>
+    <>
+      <Ticker />
+      <div className="layout-shell">
+        <aside className="side-panel">
+          <DateFXPanel />
+        </aside>
+        <div style={styles.page}>
+          <header style={styles.header}>
+            <p style={styles.eyebrow}>Descuentos con Tarjeta · Chile</p>
+            <h1 style={styles.h1}>Beneficios TC</h1>
+            <p style={styles.sub}>Descuentos vigentes en restaurantes y comercios, por banco y tarjeta.</p>
+          </header>
 
-        <main style={styles.main}>
-          <CardManager
-            tarjetas={tarjetas}
-            onAdd={handleAddCard}
-            onDelete={handleDeleteCard}
-            seleccionada={tarjetaSel}
-            onSelect={setTarjetaSel}
-          />
+          <main style={styles.main}>
+            <CardManager
+              tarjetas={tarjetas}
+              onAdd={handleAddCard}
+              onDelete={handleDeleteCard}
+              seleccionada={tarjetaSel}
+              onSelect={setTarjetaSel}
+            />
 
-          <h2 style={styles.h2}>Categoría</h2>
-          <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
+            <h2 style={styles.h2}>Categoría</h2>
+            <CategoryFilter seleccionada={categoriaSel} onSelect={setCategoriaSel} />
 
-          <button
-            style={styles.searchBtn}
-            onClick={buscarOfertas}
-            disabled={loading || !tarjetaSel}
-          >
-            {loading ? 'Buscando…' : `Buscar Oferta ${categoriaSel.emoji}`}
-          </button>
+            <button
+              style={styles.searchBtn}
+              onClick={buscarOfertas}
+              disabled={loading || !tarjetaSel}
+            >
+              {loading ? 'Buscando…' : `Buscar Oferta ${categoriaSel.emoji}`}
+            </button>
 
-          <div style={styles.resultsHeader}>
-            {tarjetaSel && (
-              <p style={styles.resultsContext}>
-                {tarjetaSel.banco} — {tarjetaSel.nombre}
-              </p>
-            )}
-            {tarjetaSel && (() => {
-              const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
-              const enlaces = getEnlacesPortal(fuente, categoriaSel.id);
-              if (enlaces.length === 0) return null;
-              return (
-                <div style={styles.portalLinks}>
-                  {enlaces.map((e, i) => (
-                    <a key={i} href={e.url} target="_blank" rel="noreferrer" style={styles.portalLink}>
-                      {e.nombre} ↗
-                    </a>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
+            <div style={styles.resultsHeader}>
+              {tarjetaSel && (
+                <p style={styles.resultsContext}>
+                  {tarjetaSel.banco} — {tarjetaSel.nombre}
+                </p>
+              )}
+              {tarjetaSel && (() => {
+                const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
+                const enlaces = getEnlacesPortal(fuente, categoriaSel.id);
+                if (enlaces.length === 0) return null;
+                return (
+                  <div style={styles.portalLinks}>
+                    {enlaces.map((e, i) => (
+                      <a key={i} href={e.url} target="_blank" rel="noreferrer" style={styles.portalLink}>
+                        {e.nombre} ↗
+                      </a>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
 
-          <OffersList ofertas={ofertas} loading={loading} error={error} mensaje={mensaje} />
+            <OffersList ofertas={ofertas} loading={loading} error={error} mensaje={mensaje} />
 
-          <WeeklyOffers tarjetas={tarjetas} />
-        </main>
+            <WeeklyOffers tarjetas={tarjetas} />
+          </main>
 
-        <footer style={styles.footer}>
-          <p>Los resultados provienen de búsqueda web en tiempo real y pueden variar. Verifica siempre en la app o sitio oficial de tu banco antes de usar el beneficio.</p>
-        </footer>
+          <footer style={styles.footer}>
+            <p>Los resultados provienen de búsqueda web en tiempo real y pueden variar. Verifica siempre en la app o sitio oficial de tu banco antes de usar el beneficio.</p>
+          </footer>
+        </div>
+        <aside className="side-panel">
+          <MarketPanel />
+        </aside>
       </div>
-      <aside className="side-panel">
-        <MarketPanel />
-      </aside>
-    </div>
+    </>
   );
 }
 
