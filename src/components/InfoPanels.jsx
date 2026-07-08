@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getUbicaciones, saveUbicaciones } from '../utils/weatherLocations.js';
+import { getRelojes, saveRelojes, resolverZonaHoraria } from '../utils/worldClock.js';
 
 const fmtCLP = (n) =>
   n == null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 2 });
@@ -101,9 +102,12 @@ export function MarketPanel() {
           ))}
           <Row label="IPC mensual" value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'} />
           <Row label="IPC 12 meses" value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'} />
+          <Row label="🟠 Cobre (lb)" value={data.cobre?.valor != null ? `$${fmtCLP(data.cobre.valor)}` : '—'} />
+          <Row label="TPM" value={data.tpm?.valor != null ? `${fmtCLP(data.tpm.valor)}%` : '—'} />
+          <Row label="Desempleo" value={data.desempleo?.valor != null ? `${fmtCLP(data.desempleo.valor)}%` : '—'} />
         </>
       )}
-      <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC: INE / Banco Central de Chile</p>
+      <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC, cobre, TPM y desempleo: INE / Banco Central de Chile</p>
     </PanelShell>
   );
 }
@@ -211,6 +215,102 @@ export function WeatherPanel() {
       </div>
       {errorAgregar && <p style={styles.errorText}>{errorAgregar}</p>}
       <p style={styles.fuente}>Fuente: Open-Meteo. Puedes agregar cualquier ciudad de Chile o del mundo.</p>
+    </PanelShell>
+  );
+}
+
+export function GmailPlaceholder() {
+  return (
+    <PanelShell title="Correos">
+      <p style={styles.loadingText}>Conexión con Gmail pendiente de configurar (requiere autorización de Google).</p>
+    </PanelShell>
+  );
+}
+
+function formatearHora(tz) {
+  try {
+    return new Intl.DateTimeFormat('es-CL', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date());
+  } catch {
+    return '—';
+  }
+}
+
+function formatearFecha(tz) {
+  try {
+    return new Intl.DateTimeFormat('es-CL', {
+      timeZone: tz,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date());
+  } catch {
+    return '';
+  }
+}
+
+export function WorldClockPanel() {
+  const [relojes, setRelojes] = useState(getRelojes());
+  const [ahora, setAhora] = useState(Date.now());
+  const [inputValor, setInputValor] = useState('');
+  const [errorAgregar, setErrorAgregar] = useState(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setAhora(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const agregarReloj = () => {
+    const nombre = inputValor.trim();
+    if (!nombre) return;
+    const tz = resolverZonaHoraria(nombre);
+    if (!tz) {
+      setErrorAgregar(`No se reconoce "${nombre}". Prueba con el nombre de la ciudad principal, o escribe directamente la zona horaria (ej: America/Bogota).`);
+      return;
+    }
+    setErrorAgregar(null);
+    const actualizado = [...relojes, { nombre, tz }];
+    setRelojes(actualizado);
+    saveRelojes(actualizado);
+    setInputValor('');
+  };
+
+  const quitarReloj = (nombre) => {
+    const actualizado = relojes.filter((r) => r.nombre !== nombre);
+    setRelojes(actualizado);
+    saveRelojes(actualizado);
+  };
+
+  return (
+    <PanelShell title="Hora Mundial">
+      <div style={styles.weatherList}>
+        {relojes.map((r, i) => (
+          <div key={i} style={styles.weatherRow}>
+            <div style={styles.weatherInfo}>
+              <p style={styles.weatherPlace}>{r.nombre}</p>
+              <p style={styles.weatherDesc}>{formatearFecha(r.tz)}</p>
+            </div>
+            <span style={styles.clockTemp}>{formatearHora(r.tz)}</span>
+            <button style={styles.removeBtn} onClick={() => quitarReloj(r.nombre)} title="Quitar">✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={styles.addRow}>
+        <input
+          style={styles.addInput}
+          placeholder="Agregar ciudad (ej: Bogotá)"
+          value={inputValor}
+          onChange={(e) => setInputValor(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && agregarReloj()}
+        />
+        <button style={styles.addBtn} onClick={agregarReloj}>+</button>
+      </div>
+      {errorAgregar && <p style={styles.errorText}>{errorAgregar}</p>}
+      <p style={styles.fuente}>Aysén y Magallanes usan la misma hora que Chile continental (no tienen huso propio). Se actualiza sola cada 30 segundos.</p>
     </PanelShell>
   );
 }
@@ -330,6 +430,13 @@ const styles = {
     fontSize: '1.15rem',
     fontWeight: 700,
     color: 'var(--gold-300)',
+    flexShrink: 0,
+  },
+  clockTemp: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '1.05rem',
+    fontWeight: 700,
+    color: 'var(--mint-300)',
     flexShrink: 0,
   },
   removeBtn: {
