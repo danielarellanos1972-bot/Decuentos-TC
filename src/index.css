@@ -80,18 +80,26 @@ a:focus-visible {
   }
 }
 
-/* --- Cinta animada (ticker) para mobile: indicadores + clima + hora mundial --- */
+/* --- Cinta animada (ticker) para mobile: indicadores + clima + hora mundial ---
+   El track usa position:absolute a propósito: así, sin importar cuán ancho sea
+   por dentro (con todo el contenido duplicado para el loop), es imposible que
+   afecte el ancho de la página — es una garantía del estándar CSS, no depende
+   de que el navegador soporte alguna propiedad más nueva. */
 .ticker-wrap {
   display: none;
-  overflow: hidden;
-  contain: layout paint;
   position: relative;
+  overflow: hidden;
+  height: 36px;
   background: var(--navy-900);
   border-bottom: 1px solid var(--navy-700);
-  padding: 8px 0;
 }
 .ticker-track {
-  display: inline-flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
   white-space: nowrap;
   animation: ticker-scroll 32s linear infinite;
 }
