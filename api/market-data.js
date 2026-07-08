@@ -9,9 +9,9 @@
 //   Chile no publica CAD de forma regular)
 // - IPC acumulado 12 meses → calculado componiendo las variaciones mensuales
 //   del último año desde mindicador.cl
-// - IPSA → Bolsa de Santiago no tiene API pública oficial gratuita; se intenta
-//   una fuente de mercado de mejor esfuerzo. Si falla, se devuelve null y el
-//   frontend lo muestra como "No disponible" en vez de romper la página.
+// - Índices (IPSA, S&P 500, Europa, IBEX, Nikkei, petróleo, oro) → Yahoo
+//   Finance (fuente de mejor esfuerzo, no oficial). Si alguno falla, se
+//   devuelve null y el frontend lo muestra como "No disponible".
 //
 // No requiere variables de entorno: todas las fuentes usadas aquí son gratuitas
 // y no piden API key.
@@ -62,24 +62,23 @@ async function getIpcAnual() {
   }
 }
 
-async function getIpsa() {
+async function getQuote(ticker, label) {
   try {
     const resp = await fetchConTimeout(
-      'https://query1.finance.yahoo.com/v8/finance/chart/%5EIPSA',
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
       { headers: { 'User-Agent': 'Mozilla/5.0' } },
       3500
     );
-    if (!resp.ok) return null;
+    if (!resp.ok) return { label, valor: null };
     const data = await resp.json();
-    const result = data?.chart?.result?.[0];
-    const meta = result?.meta;
-    if (!meta?.regularMarketPrice) return null;
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice) return { label, valor: null };
     const actual = meta.regularMarketPrice;
     const previo = meta.previousClose || meta.chartPreviousClose;
     const variacion = previo ? ((actual - previo) / previo) * 100 : null;
-    return { valor: actual, variacion };
+    return { label, valor: actual, variacion };
   } catch {
-    return null;
+    return { label, valor: null };
   }
 }
 
@@ -92,10 +91,16 @@ export default async function handler(req, res) {
     const base = await getIndicadoresBase();
 
     const usdClp = base?.dolar?.valor || null;
-    const [cadClp, ipcAnual, ipsa] = await Promise.all([
+    const [cadClp, ipcAnual, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
       getCadClp(usdClp),
       getIpcAnual(),
-      getIpsa(),
+      getQuote('^IPSA', 'IPSA'),
+      getQuote('^GSPC', 'S&P 500 (NY)'),
+      getQuote('^STOXX50E', 'Europa (Stoxx 50)'),
+      getQuote('^IBEX', 'IBEX 35'),
+      getQuote('^N225', 'Nikkei 225 (Asia)'),
+      getQuote('CL=F', 'Petróleo (WTI)'),
+      getQuote('GC=F', 'Oro'),
     ]);
 
     return res.status(200).json({
@@ -106,7 +111,7 @@ export default async function handler(req, res) {
       cad: cadClp ? { valor: cadClp } : null,
       ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
       ipcAnual: ipcAnual,
-      ipsa: ipsa,
+      indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
     });
   } catch (err) {
     console.error(err);
