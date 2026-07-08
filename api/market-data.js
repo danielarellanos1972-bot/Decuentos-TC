@@ -117,6 +117,7 @@ export default async function handler(req, res) {
       utm: base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null,
       usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
       cad: cadClp ? { valor: cadClp } : null,
+      eur: base?.euro ? { valor: base.euro.valor, fecha: base.euro.fecha } : null,
       ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
       ipcAnual: ipcAnual,
       cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
