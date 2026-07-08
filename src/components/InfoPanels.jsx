@@ -81,6 +81,63 @@ export function DateFXPanel() {
   );
 }
 
+function useWeatherData() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let activo = true;
+    fetch('/api/weather')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!activo) return;
+        if (d.error) setError(d.error);
+        else setData(d);
+      })
+      .catch(() => activo && setError('No se pudo conectar.'))
+      .finally(() => activo && setLoading(false));
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  return { data, error, loading };
+}
+
+export function WeatherPanel() {
+  const { data, error, loading } = useWeatherData();
+
+  return (
+    <PanelShell title="Clima">
+      {loading && <p style={styles.loadingText}>Cargando clima…</p>}
+      {error && <p style={styles.errorText}>{error}</p>}
+      {data?.ubicaciones && (
+        <div style={styles.weatherList}>
+          {data.ubicaciones.map((u, i) => (
+            <div key={i} style={styles.weatherRow}>
+              <span style={styles.weatherIcon}>{u.error ? '—' : u.icono}</span>
+              <div style={styles.weatherInfo}>
+                <p style={styles.weatherPlace}>{u.nombre}</p>
+                {u.error ? (
+                  <p style={styles.weatherDesc}>No disponible</p>
+                ) : (
+                  <>
+                    <p style={styles.weatherDesc}>{u.texto}</p>
+                    <p style={styles.weatherMinMax}>Mín. {u.min}° · Máx. {u.max}°</p>
+                  </>
+                )}
+              </div>
+              {!u.error && <span style={styles.weatherTemp}>{u.temp}°</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={styles.fuente}>Fuente: Open-Meteo</p>
+    </PanelShell>
+  );
+}
+
 export function MarketPanel() {
   const { data, error, loading } = useMarketData();
 
@@ -175,5 +232,50 @@ const styles = {
     opacity: 0.45,
     margin: '12px 0 0',
     lineHeight: 1.4,
+  },
+  weatherList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  weatherRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 0',
+    borderBottom: '1px solid var(--navy-800)',
+  },
+  weatherIcon: {
+    fontSize: '1.8rem',
+    lineHeight: 1,
+    flexShrink: 0,
+  },
+  weatherInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  weatherPlace: {
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    color: 'var(--paper-050)',
+    margin: '0 0 2px',
+  },
+  weatherDesc: {
+    fontSize: '0.72rem',
+    opacity: 0.7,
+    margin: '0 0 2px',
+  },
+  weatherMinMax: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.68rem',
+    opacity: 0.55,
+    margin: 0,
+  },
+  weatherTemp: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '1.15rem',
+    fontWeight: 700,
+    color: 'var(--gold-300)',
+    flexShrink: 0,
   },
 };
