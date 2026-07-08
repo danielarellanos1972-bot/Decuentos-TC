@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getUbicaciones } from '../utils/weatherLocations.js';
 
 function useTickerData() {
   const [market, setMarket] = useState(null);
@@ -7,7 +8,14 @@ function useTickerData() {
   useEffect(() => {
     let activo = true;
     fetch('/api/market-data').then((r) => r.json()).then((d) => activo && !d.error && setMarket(d)).catch(() => {});
-    fetch('/api/weather').then((r) => r.json()).then((d) => activo && !d.error && setWeather(d)).catch(() => {});
+    fetch('/api/weather', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ubicaciones: getUbicaciones() }),
+    })
+      .then((r) => r.json())
+      .then((d) => activo && !d.error && setWeather(d))
+      .catch(() => {});
     return () => {
       activo = false;
     };
@@ -29,7 +37,9 @@ export default function Ticker() {
     items.push(`🇨🇱 UTM $${fmt(market.utm?.valor)}`);
     items.push(`🇺🇸 USD $${fmt(market.usd?.valor)}`);
     if (market.cad?.valor) items.push(`🇨🇦 CAD $${fmt(market.cad.valor)}`);
-    if (market.ipsa?.valor) items.push(`📈 IPSA ${fmt(market.ipsa.valor)} (${fmtPct(market.ipsa.variacion)})`);
+    (market.indices || []).forEach((idx) => {
+      if (idx.valor != null) items.push(`📈 ${idx.label} ${fmt(idx.valor)} (${fmtPct(idx.variacion)})`);
+    });
     if (market.ipcAnual?.valor != null) items.push(`📊 IPC 12m ${fmtPct(market.ipcAnual.valor)}`);
   }
 
