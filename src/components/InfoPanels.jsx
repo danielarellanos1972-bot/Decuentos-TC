@@ -16,35 +16,6 @@ const hoyFormateado = () =>
     year: 'numeric',
   });
 
-let marketDataPromise = null;
-let marketDataCache = null;
-let marketDataCacheTime = 0;
-const CACHE_MS = 20000; // evita pedir 2 veces lo mismo si Hoy y Mercado cargan casi juntos
-
-function fetchMarketDataShared() {
-  const ahora = Date.now();
-  if (marketDataCache && ahora - marketDataCacheTime < CACHE_MS) {
-    return Promise.resolve(marketDataCache);
-  }
-  if (!marketDataPromise) {
-    marketDataPromise = fetch('/api/market-data')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.error) {
-          marketDataCache = d;
-          marketDataCacheTime = Date.now();
-        }
-        marketDataPromise = null;
-        return d;
-      })
-      .catch((err) => {
-        marketDataPromise = null;
-        throw err;
-      });
-  }
-  return marketDataPromise;
-}
-
 function useMarketData() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -52,7 +23,8 @@ function useMarketData() {
 
   useEffect(() => {
     let activo = true;
-    fetchMarketDataShared()
+    fetch('/api/market-data')
+      .then((r) => r.json())
       .then((d) => {
         if (!activo) return;
         if (d.error) setError(d.error);
@@ -98,6 +70,7 @@ export function DateFXPanel() {
       <div style={styles.divider} />
       {loading && <p style={styles.loadingText}>Cargando indicadores…</p>}
       {error && <p style={styles.errorText}>{error}</p>}
+      {data?.avisoBase && <p style={styles.errorText}>{data.avisoBase}</p>}
       {data && (
         <>
           <Row label="🇨🇱 UF" value={`$${fmtCLP(data.uf?.valor)}`} />
@@ -119,6 +92,7 @@ export function MarketPanel() {
     <PanelShell title="Mercado">
       {loading && <p style={styles.loadingText}>Cargando indicadores…</p>}
       {error && <p style={styles.errorText}>{error}</p>}
+      {data?.avisoBase && <p style={styles.errorText}>Cobre/TPM/desempleo no disponibles (mindicador.cl no respondió).</p>}
       {data && (
         <>
           {(data.indices || []).map((idx, i) => (
