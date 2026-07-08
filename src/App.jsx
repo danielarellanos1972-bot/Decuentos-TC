@@ -84,8 +84,9 @@ export default function App() {
     <>
       <Ticker />
       <div className="layout-shell">
-        <aside className="side-panel">
+        <aside className="side-panel side-panel-stack">
           <DateFXPanel />
+          <MarketPanel />
         </aside>
         <div style={styles.page}>
           <header style={styles.header}>
@@ -145,8 +146,7 @@ export default function App() {
             <p>Los resultados provienen de búsqueda web en tiempo real y pueden variar. Verifica siempre en la app o sitio oficial de tu banco antes de usar el beneficio.</p>
           </footer>
         </div>
-        <aside className="side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <MarketPanel />
+        <aside className="side-panel side-panel-stack">
           <WeatherPanel />
         </aside>
       </div>
