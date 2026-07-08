@@ -50,7 +50,7 @@ export default function Ticker() {
   if (weather?.ubicaciones) {
     weather.ubicaciones.forEach((u) => {
       if (!u.error && u.temp != null) {
-        items.push(`${u.icono} ${u.nombre} ${u.temp}°`);
+        items.push(`${u.icono} ${u.nombre} ${u.texto} ${u.temp}°`);
       }
     });
   }
