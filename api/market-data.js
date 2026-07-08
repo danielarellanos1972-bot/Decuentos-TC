@@ -9,9 +9,9 @@
 //   Chile no publica CAD de forma regular)
 // - IPC acumulado 12 meses → calculado componiendo las variaciones mensuales
 //   del último año desde mindicador.cl
-// - Índices (IPSA, S&P 500, Europa, IBEX, Nikkei, petróleo, oro) → Yahoo
-//   Finance (fuente de mejor esfuerzo, no oficial). Si alguno falla, se
-//   devuelve null y el frontend lo muestra como "No disponible".
+// - IPSA → Bolsa de Santiago no tiene API pública oficial gratuita; se intenta
+//   una fuente de mercado de mejor esfuerzo. Si falla, se devuelve null y el
+//   frontend lo muestra como "No disponible" en vez de romper la página.
 //
 // No requiere variables de entorno: todas las fuentes usadas aquí son gratuitas
 // y no piden API key.
@@ -95,38 +95,42 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+
+  let base = null;
+  let avisoBase = null;
   try {
-    const base = await getIndicadoresBase();
-
-    const usdClp = base?.dolar?.valor || null;
-    const [cadClp, ipcAnual, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
-      getCadClp(usdClp),
-      getIpcAnual(),
-      getQuote('^IPSA', 'IPSA'),
-      getQuote('^GSPC', 'S&P 500 (NY)'),
-      getQuote('^STOXX50E', 'Europa (Stoxx 50)'),
-      getQuote('^IBEX', 'IBEX 35'),
-      getQuote('^N225', 'Nikkei 225 (Asia)'),
-      getQuote('CL=F', 'Petróleo (WTI)'),
-      getQuote('GC=F', 'Oro'),
-    ]);
-
-    return res.status(200).json({
-      fecha: new Date().toISOString(),
-      uf: base?.uf ? { valor: base.uf.valor, fecha: base.uf.fecha } : null,
-      utm: base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null,
-      usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
-      cad: cadClp ? { valor: cadClp } : null,
-      eur: base?.euro ? { valor: base.euro.valor, fecha: base.euro.fecha } : null,
-      ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
-      ipcAnual: ipcAnual,
-      cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
-      tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
-      desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
-      indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message || 'Error obteniendo indicadores' });
+    base = await getIndicadoresBase();
+  } catch {
+    avisoBase = 'UF/UTM/USD/Euro/cobre/TPM/desempleo no disponibles en este momento (mindicador.cl no respondió).';
   }
+
+  const usdClp = base?.dolar?.valor || null;
+  const [cadClp, ipcAnual, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
+    getCadClp(usdClp),
+    getIpcAnual(),
+    getQuote('^IPSA', 'IPSA'),
+    getQuote('^GSPC', 'S&P 500 (NY)'),
+    getQuote('^STOXX50E', 'Europa (Stoxx 50)'),
+    getQuote('^IBEX', 'IBEX 35'),
+    getQuote('^N225', 'Nikkei 225 (Asia)'),
+    getQuote('CL=F', 'Petróleo (WTI)'),
+    getQuote('GC=F', 'Oro'),
+  ]);
+
+  return res.status(200).json({
+    fecha: new Date().toISOString(),
+    avisoBase,
+    uf: base?.uf ? { valor: base.uf.valor, fecha: base.uf.fecha } : null,
+    utm: base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null,
+    usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
+    cad: cadClp ? { valor: cadClp } : null,
+    eur: base?.euro ? { valor: base.euro.valor, fecha: base.euro.fecha } : null,
+    ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
+    ipcAnual: ipcAnual,
+    cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
+    tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
+    desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
+    indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
+  });
 }
