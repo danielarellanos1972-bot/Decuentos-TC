@@ -2,8 +2,8 @@
 // GET /api/market-data
 //
 // Junta indicadores financieros de Chile para los paneles laterales:
-// - UF, UTM, Dólar (USD/CLP), IPC del mes, cobre, TPM y desempleo → mindicador.cl
-//   (republica datos oficiales del Banco Central de Chile / INE, sin API key)
+// - UF, UTM, Dólar (USD/CLP), IPC del mes → mindicador.cl (republica datos
+//   oficiales del Banco Central de Chile, sin necesidad de API key propia)
 // - Dólar Canadiense (CAD/CLP) → calculado cruzando el USD/CLP de mindicador
 //   con el tipo de cambio USD/CAD de open.er-api.com (el Banco Central de
 //   Chile no publica CAD de forma regular)
@@ -23,9 +23,15 @@ const fetchConTimeout = (url, options, timeoutMs) => {
 };
 
 async function getIndicadoresBase() {
-  const resp = await fetchConTimeout('https://mindicador.cl/api', {}, 4500);
-  if (!resp.ok) throw new Error('mindicador.cl no respondió correctamente');
-  return resp.json();
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      const resp = await fetchConTimeout('https://mindicador.cl/api', {}, 9000);
+      if (resp.ok) return resp.json();
+    } catch {
+      // si falla el primer intento, se reintenta una vez antes de rendirse
+    }
+  }
+  throw new Error('mindicador.cl no respondió correctamente tras 2 intentos');
 }
 
 async function getCadClp(usdClp) {
