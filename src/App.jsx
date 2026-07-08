@@ -6,6 +6,7 @@ import WeeklyOffers from './components/WeeklyOffers.jsx';
 import { DateFXPanel, MarketPanel, WeatherPanel, WorldClockPanel } from './components/InfoPanels.jsx';
 import Ticker from './components/Ticker.jsx';
 import BankLinks from './components/BankLinks.jsx';
+import Calculator from './components/Calculator.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
@@ -141,6 +142,8 @@ export default function App() {
             <OffersList ofertas={ofertas} loading={loading} error={error} mensaje={mensaje} />
 
             <WeeklyOffers tarjetas={tarjetas} />
+
+            <Calculator />
 
             <BankLinks />
           </main>
