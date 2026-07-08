@@ -1,0 +1,115 @@
+// Vercel Serverless Function
+// GET /api/market-data
+//
+// Junta indicadores financieros de Chile para los paneles laterales:
+// - UF, UTM, Dólar (USD/CLP), IPC del mes → mindicador.cl (republica datos
+//   oficiales del Banco Central de Chile, sin necesidad de API key propia)
+// - Dólar Canadiense (CAD/CLP) → calculado cruzando el USD/CLP de mindicador
+//   con el tipo de cambio USD/CAD de open.er-api.com (el Banco Central de
+//   Chile no publica CAD de forma regular)
+// - IPC acumulado 12 meses → calculado componiendo las variaciones mensuales
+//   del último año desde mindicador.cl
+// - IPSA → Bolsa de Santiago no tiene API pública oficial gratuita; se intenta
+//   una fuente de mercado de mejor esfuerzo. Si falla, se devuelve null y el
+//   frontend lo muestra como "No disponible" en vez de romper la página.
+//
+// No requiere variables de entorno: todas las fuentes usadas aquí son gratuitas
+// y no piden API key.
+
+const fetchConTimeout = (url, options, timeoutMs) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+};
+
+async function getIndicadoresBase() {
+  const resp = await fetchConTimeout('https://mindicador.cl/api', {}, 4500);
+  if (!resp.ok) throw new Error('mindicador.cl no respondió correctamente');
+  return resp.json();
+}
+
+async function getCadClp(usdClp) {
+  try {
+    const resp = await fetchConTimeout('https://open.er-api.com/v6/latest/USD', {}, 3500);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const usdPorCad = data?.rates?.CAD;
+    if (!usdPorCad || !usdClp) return null;
+    // 1 USD = usdPorCad CAD  →  1 CAD = usdClp / usdPorCad CLP
+    return usdClp / usdPorCad;
+  } catch {
+    return null;
+  }
+}
+
+async function getIpcAnual() {
+  try {
+    const anioActual = new Date().getFullYear();
+    const [respActual, respAnterior] = await Promise.all([
+      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual}`, {}, 3500),
+      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual - 1}`, {}, 3500),
+    ]);
+    const dataActual = respActual.ok ? await respActual.json() : { serie: [] };
+    const dataAnterior = respAnterior.ok ? await respAnterior.json() : { serie: [] };
+    const serie = [...(dataActual.serie || []), ...(dataAnterior.serie || [])]
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+      .slice(0, 12);
+    if (serie.length < 6) return null; // muy pocos datos para un acumulado confiable
+    const factor = serie.reduce((acc, m) => acc * (1 + (m.valor || 0) / 100), 1);
+    return { valor: (factor - 1) * 100, meses: serie.length };
+  } catch {
+    return null;
+  }
+}
+
+async function getIpsa() {
+  try {
+    const resp = await fetchConTimeout(
+      'https://query1.finance.yahoo.com/v8/finance/chart/%5EIPSA',
+      { headers: { 'User-Agent': 'Mozilla/5.0' } },
+      3500
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const result = data?.chart?.result?.[0];
+    const meta = result?.meta;
+    if (!meta?.regularMarketPrice) return null;
+    const actual = meta.regularMarketPrice;
+    const previo = meta.previousClose || meta.chartPreviousClose;
+    const variacion = previo ? ((actual - previo) / previo) * 100 : null;
+    return { valor: actual, variacion };
+  } catch {
+    return null;
+  }
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  try {
+    const base = await getIndicadoresBase();
+
+    const usdClp = base?.dolar?.valor || null;
+    const [cadClp, ipcAnual, ipsa] = await Promise.all([
+      getCadClp(usdClp),
+      getIpcAnual(),
+      getIpsa(),
+    ]);
+
+    return res.status(200).json({
+      fecha: new Date().toISOString(),
+      uf: base?.uf ? { valor: base.uf.valor, fecha: base.uf.fecha } : null,
+      utm: base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null,
+      usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
+      cad: cadClp ? { valor: cadClp } : null,
+      ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
+      ipcAnual: ipcAnual,
+      ipsa: ipsa,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || 'Error obteniendo indicadores' });
+  }
+}
