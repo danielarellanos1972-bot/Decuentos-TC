@@ -80,4 +80,27 @@ a:focus-visible {
   }
 }
 
-/*
+/* --- Cinta animada (ticker) para mobile: indicadores + clima + hora mundial --- */
+.ticker-wrap {
+  display: none;
+  overflow: hidden;
+  contain: layout paint;
+  position: relative;
+  background: var(--navy-900);
+  border-bottom: 1px solid var(--navy-700);
+  padding: 8px 0;
+}
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-scroll 32s linear infinite;
+}
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (max-width: 1100px) {
+  .ticker-wrap {
+    display: block;
+  }
+}
