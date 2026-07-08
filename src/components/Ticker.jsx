@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getUbicaciones } from '../utils/weatherLocations.js';
+import { getRelojes } from '../utils/worldClock.js';
 
 function useTickerData() {
   const [market, setMarket] = useState(null);
@@ -41,6 +42,9 @@ export default function Ticker() {
       if (idx.valor != null) items.push(`📈 ${idx.label} ${fmt(idx.valor)} (${fmtPct(idx.variacion)})`);
     });
     if (market.ipcAnual?.valor != null) items.push(`📊 IPC 12m ${fmtPct(market.ipcAnual.valor)}`);
+    if (market.cobre?.valor != null) items.push(`🟠 Cobre $${fmt(market.cobre.valor)}`);
+    if (market.tpm?.valor != null) items.push(`🏦 TPM ${fmt(market.tpm.valor)}%`);
+    if (market.desempleo?.valor != null) items.push(`👥 Desempleo ${fmt(market.desempleo.valor)}%`);
   }
 
   if (weather?.ubicaciones) {
@@ -50,6 +54,15 @@ export default function Ticker() {
       }
     });
   }
+
+  getRelojes().forEach((r) => {
+    try {
+      const hora = new Intl.DateTimeFormat('es-CL', { timeZone: r.tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+      items.push(`🕐 ${r.nombre} ${hora}`);
+    } catch {
+      // zona horaria inválida guardada; se omite en vez de romper la cinta
+    }
+  });
 
   if (items.length === 0) return null;
 
