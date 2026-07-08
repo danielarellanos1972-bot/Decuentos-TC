@@ -1,10 +1,12 @@
 // Vercel Serverless Function
-// GET /api/weather
+// POST /api/weather   body: { ubicaciones: [{ nombre, lat, lon }, ...] }
+// GET  /api/weather    → usa 5 ubicaciones por defecto (Chile)
 //
-// Clima actual para las ubicaciones fijas de Nano, usando Open-Meteo
-// (gratuito, sin API key, datos de agencias meteorológicas oficiales).
+// Clima actual + mín/máx del día, vía Open-Meteo (gratuito, sin API key).
+// Las ubicaciones ahora las controla el usuario desde la app (se guardan en
+// su navegador) — este endpoint solo consulta el clima de lo que le pidan.
 
-const UBICACIONES = [
+const DEFAULT_UBICACIONES = [
   { nombre: 'Colina', lat: -33.2003, lon: -70.6746 },
   { nombre: 'Santiago (RM)', lat: -33.4489, lon: -70.6693 },
   { nombre: 'Panguipulli', lat: -39.6404, lon: -72.3355 },
@@ -12,7 +14,6 @@ const UBICACIONES = [
   { nombre: 'Quilpué', lat: -33.0458, lon: -71.4419 },
 ];
 
-// Mapeo simplificado de los códigos de clima de Open-Meteo a texto + emoji
 const CODIGO_CLIMA = {
   0: { texto: 'Despejado', icono: '☀️' },
   1: { texto: 'Mayormente despejado', icono: '🌤️' },
@@ -66,11 +67,15 @@ async function getClimaUbicacion(u) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
+  const ubicaciones =
+    req.method === 'POST' && Array.isArray(req.body?.ubicaciones) && req.body.ubicaciones.length > 0
+      ? req.body.ubicaciones.slice(0, 12)
+      : DEFAULT_UBICACIONES;
   try {
-    const resultados = await Promise.all(UBICACIONES.map(getClimaUbicacion));
+    const resultados = await Promise.all(ubicaciones.map(getClimaUbicacion));
     return res.status(200).json({ ubicaciones: resultados });
   } catch (err) {
     console.error(err);
