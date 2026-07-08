@@ -2,8 +2,8 @@
 // GET /api/market-data
 //
 // Junta indicadores financieros de Chile para los paneles laterales:
-// - UF, UTM, Dólar (USD/CLP), IPC del mes → mindicador.cl (republica datos
-//   oficiales del Banco Central de Chile, sin necesidad de API key propia)
+// - UF, UTM, Dólar (USD/CLP), IPC del mes, cobre, TPM y desempleo → mindicador.cl
+//   (republica datos oficiales del Banco Central de Chile / INE, sin API key)
 // - Dólar Canadiense (CAD/CLP) → calculado cruzando el USD/CLP de mindicador
 //   con el tipo de cambio USD/CAD de open.er-api.com (el Banco Central de
 //   Chile no publica CAD de forma regular)
@@ -111,6 +111,9 @@ export default async function handler(req, res) {
       cad: cadClp ? { valor: cadClp } : null,
       ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
       ipcAnual: ipcAnual,
+      cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
+      tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
+      desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
       indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
     });
   } catch (err) {
