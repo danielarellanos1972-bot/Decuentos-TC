@@ -340,7 +340,7 @@ export function WorldClockPanel() {
         <button style={styles.addBtn} onClick={agregarReloj}>+</button>
       </div>
       {errorAgregar && <p style={styles.errorText}>{errorAgregar}</p>}
-      <p style={styles.fuente}>Aysén y Magallanes usan la misma hora que Chile continental (no tienen huso propio). Se actualiza sola cada 30 segundos.</p>
+      <p style={styles.fuente}>Aysén-Magallanes usa la misma hora que Chile continental (no tiene huso propio). Se actualiza sola cada 30 segundos.</p>
     </PanelShell>
   );
 }
@@ -419,14 +419,14 @@ const styles = {
   },
   weatherList: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '8px',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '6px',
   },
   weatherRow: {
     position: 'relative',
     background: 'var(--navy-800)',
-    borderRadius: '10px',
-    padding: '10px 8px',
+    borderRadius: '9px',
+    padding: '8px 6px',
     display: 'flex',
     flexDirection: 'column',
     gap: '1px',
@@ -438,77 +438,15 @@ const styles = {
     marginBottom: '2px',
   },
   weatherIcon: {
-    fontSize: '1.3rem',
+    fontSize: '1.05rem',
     lineHeight: 1,
   },
   weatherPlace: {
-    fontSize: '0.72rem',
+    fontSize: '0.62rem',
     fontWeight: 600,
     color: 'var(--paper-050)',
     margin: '2px 0 1px',
-    lineHeight: 1.25,
+    lineHeight: 1.2,
   },
   weatherDesc: {
-    fontSize: '0.64rem',
-    opacity: 0.7,
-    margin: '0 0 1px',
-    lineHeight: 1.25,
-  },
-  weatherMinMax: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.6rem',
-    opacity: 0.55,
-    margin: 0,
-  },
-  weatherTemp: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.95rem',
-    fontWeight: 700,
-    color: 'var(--gold-300)',
-  },
-  clockTemp: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--mint-300)',
-    margin: '2px 0 1px',
-  },
-  removeBtnCorner: {
-    position: 'absolute',
-    top: '4px',
-    right: '4px',
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--paper-100)',
-    opacity: 0.35,
-    fontSize: '0.65rem',
-    cursor: 'pointer',
-    padding: '2px',
-    lineHeight: 1,
-  },
-  addRow: {
-    display: 'flex',
-    gap: '6px',
-    marginTop: '12px',
-  },
-  addInput: {
-    flex: 1,
-    background: 'var(--navy-800)',
-    border: '1px solid var(--navy-700)',
-    borderRadius: '8px',
-    padding: '7px 10px',
-    color: 'var(--paper-050)',
-    fontSize: '0.75rem',
-    outline: 'none',
-  },
-  addBtn: {
-    background: 'var(--gold-500)',
-    color: 'var(--navy-950)',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '0 14px',
-    fontWeight: 700,
-    fontSize: '0.9rem',
-    cursor: 'pointer',
-  },
-};
+    fontSize: '0.56rem',
