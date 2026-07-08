@@ -3,8 +3,7 @@ const KEY = 'descuentos-tc-relojes-mundo';
 export const DEFAULT_RELOJES = [
   { nombre: 'Santiago (Chile continental)', tz: 'America/Santiago' },
   { nombre: 'Isla de Pascua (Chile insular)', tz: 'Pacific/Easter' },
-  { nombre: 'Aysén', tz: 'America/Santiago' },
-  { nombre: 'Magallanes', tz: 'America/Santiago' },
+  { nombre: 'Aysén-Magallanes', tz: 'America/Santiago' },
   { nombre: 'Toronto', tz: 'America/Toronto' },
   { nombre: 'Nueva York', tz: 'America/New_York' },
   { nombre: 'Miami', tz: 'America/New_York' },
