@@ -16,6 +16,35 @@ const hoyFormateado = () =>
     year: 'numeric',
   });
 
+let marketDataPromise = null;
+let marketDataCache = null;
+let marketDataCacheTime = 0;
+const CACHE_MS = 20000; // evita pedir 2 veces lo mismo si Hoy y Mercado cargan casi juntos
+
+function fetchMarketDataShared() {
+  const ahora = Date.now();
+  if (marketDataCache && ahora - marketDataCacheTime < CACHE_MS) {
+    return Promise.resolve(marketDataCache);
+  }
+  if (!marketDataPromise) {
+    marketDataPromise = fetch('/api/market-data')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.error) {
+          marketDataCache = d;
+          marketDataCacheTime = Date.now();
+        }
+        marketDataPromise = null;
+        return d;
+      })
+      .catch((err) => {
+        marketDataPromise = null;
+        throw err;
+      });
+  }
+  return marketDataPromise;
+}
+
 function useMarketData() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -23,8 +52,7 @@ function useMarketData() {
 
   useEffect(() => {
     let activo = true;
-    fetch('/api/market-data')
-      .then((r) => r.json())
+    fetchMarketDataShared()
       .then((d) => {
         if (!activo) return;
         if (d.error) setError(d.error);
@@ -310,168 +338,4 @@ export function WorldClockPanel() {
         <button style={styles.addBtn} onClick={agregarReloj}>+</button>
       </div>
       {errorAgregar && <p style={styles.errorText}>{errorAgregar}</p>}
-      <p style={styles.fuente}>Aysén y Magallanes usan la misma hora que Chile continental (no tienen huso propio). Se actualiza sola cada 30 segundos.</p>
-    </PanelShell>
-  );
-}
-
-const styles = {
-  panel: {
-    background: 'var(--navy-900)',
-    border: '1px solid var(--navy-700)',
-    borderRadius: '14px',
-    padding: '18px 16px',
-  },
-  panelTitle: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '1rem',
-    color: 'var(--gold-300)',
-    margin: '0 0 10px',
-    textTransform: 'capitalize',
-  },
-  dateText: {
-    fontSize: '0.85rem',
-    color: 'var(--paper-050)',
-    margin: '0 0 12px',
-    textTransform: 'capitalize',
-    lineHeight: 1.4,
-  },
-  divider: {
-    height: '1px',
-    background: 'var(--navy-700)',
-    margin: '0 0 12px',
-  },
-  row: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: '4px',
-    padding: '7px 0',
-    borderBottom: '1px solid var(--navy-800)',
-  },
-  rowLabel: {
-    fontSize: '0.78rem',
-    opacity: 0.7,
-    whiteSpace: 'nowrap',
-  },
-  rowValueWrap: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '6px',
-  },
-  rowValue: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.85rem',
-    color: 'var(--paper-050)',
-    fontWeight: 600,
-  },
-  rowSub: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.7rem',
-    color: 'var(--mint-300)',
-  },
-  loadingText: {
-    fontSize: '0.78rem',
-    opacity: 0.6,
-    margin: 0,
-  },
-  errorText: {
-    fontSize: '0.78rem',
-    color: 'var(--coral-500)',
-    margin: 0,
-  },
-  fuente: {
-    fontSize: '0.65rem',
-    opacity: 0.45,
-    margin: '12px 0 0',
-    lineHeight: 1.4,
-  },
-  weatherList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
-  weatherRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 0',
-    borderBottom: '1px solid var(--navy-800)',
-  },
-  weatherIcon: {
-    fontSize: '1.8rem',
-    lineHeight: 1,
-    flexShrink: 0,
-  },
-  weatherInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  weatherPlace: {
-    fontSize: '0.8rem',
-    fontWeight: 600,
-    color: 'var(--paper-050)',
-    margin: '0 0 2px',
-  },
-  weatherDesc: {
-    fontSize: '0.72rem',
-    opacity: 0.7,
-    margin: '0 0 2px',
-  },
-  weatherMinMax: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.68rem',
-    opacity: 0.55,
-    margin: 0,
-  },
-  weatherTemp: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '1.15rem',
-    fontWeight: 700,
-    color: 'var(--gold-300)',
-    flexShrink: 0,
-  },
-  clockTemp: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '1.05rem',
-    fontWeight: 700,
-    color: 'var(--mint-300)',
-    flexShrink: 0,
-  },
-  removeBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--paper-100)',
-    opacity: 0.4,
-    fontSize: '0.75rem',
-    cursor: 'pointer',
-    flexShrink: 0,
-    padding: '2px 4px',
-  },
-  addRow: {
-    display: 'flex',
-    gap: '6px',
-    marginTop: '12px',
-  },
-  addInput: {
-    flex: 1,
-    background: 'var(--navy-800)',
-    border: '1px solid var(--navy-700)',
-    borderRadius: '8px',
-    padding: '7px 10px',
-    color: 'var(--paper-050)',
-    fontSize: '0.75rem',
-    outline: 'none',
-  },
-  addBtn: {
-    background: 'var(--gold-500)',
-    color: 'var(--navy-950)',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '0 14px',
-    fontWeight: 700,
-    fontSize: '0.9rem',
-    cursor: 'pointer',
-  },
-};
+      <p style={styles.fuente}>Aysén y Magallanes usan la misma hora que
