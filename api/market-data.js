@@ -22,10 +22,12 @@ const fetchConTimeout = (url, options, timeoutMs) => {
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
+const HEADERS_MINDICADOR = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)' };
+
 async function getIndicadoresBase() {
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await fetchConTimeout('https://mindicador.cl/api', {}, 9000);
+      const resp = await fetchConTimeout('https://mindicador.cl/api', { headers: HEADERS_MINDICADOR }, 9000);
       if (resp.ok) return resp.json();
     } catch {
       // si falla el primer intento, se reintenta una vez antes de rendirse
@@ -52,8 +54,8 @@ async function getIpcAnual() {
   try {
     const anioActual = new Date().getFullYear();
     const [respActual, respAnterior] = await Promise.all([
-      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual}`, {}, 3500),
-      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual - 1}`, {}, 3500),
+      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual}`, { headers: HEADERS_MINDICADOR }, 3500),
+      fetchConTimeout(`https://mindicador.cl/api/ipc/${anioActual - 1}`, { headers: HEADERS_MINDICADOR }, 3500),
     ]);
     const dataActual = respActual.ok ? await respActual.json() : { serie: [] };
     const dataAnterior = respAnterior.ok ? await respAnterior.json() : { serie: [] };
