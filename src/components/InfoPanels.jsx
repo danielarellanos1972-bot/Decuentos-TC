@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getUbicaciones, saveUbicaciones } from '../utils/weatherLocations.js';
 
 const fmtCLP = (n) =>
   n == null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 2 });
@@ -81,14 +82,45 @@ export function DateFXPanel() {
   );
 }
 
-function useWeatherData() {
+export function MarketPanel() {
+  const { data, error, loading } = useMarketData();
+
+  return (
+    <PanelShell title="Mercado">
+      {loading && <p style={styles.loadingText}>Cargando indicadores…</p>}
+      {error && <p style={styles.errorText}>{error}</p>}
+      {data && (
+        <>
+          {(data.indices || []).map((idx, i) => (
+            <Row
+              key={i}
+              label={idx.label}
+              value={idx.valor != null ? fmtCLP(idx.valor) : 'No disponible'}
+              sub={idx.variacion != null ? fmtPct(idx.variacion) : null}
+            />
+          ))}
+          <Row label="IPC mensual" value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'} />
+          <Row label="IPC 12 meses" value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'} />
+        </>
+      )}
+      <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC: INE / Banco Central de Chile</p>
+    </PanelShell>
+  );
+}
+
+function useWeatherData(ubicaciones) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let activo = true;
-    fetch('/api/weather')
+    setLoading(true);
+    fetch('/api/weather', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ubicaciones }),
+    })
       .then((r) => r.json())
       .then((d) => {
         if (!activo) return;
@@ -100,13 +132,44 @@ function useWeatherData() {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [ubicaciones]);
 
   return { data, error, loading };
 }
 
 export function WeatherPanel() {
-  const { data, error, loading } = useWeatherData();
+  const [ubicaciones, setUbicaciones] = useState(getUbicaciones());
+  const [inputValor, setInputValor] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [errorAgregar, setErrorAgregar] = useState(null);
+  const { data, error, loading } = useWeatherData(ubicaciones);
+
+  const agregarUbicacion = async () => {
+    const nombre = inputValor.trim();
+    if (!nombre) return;
+    setBuscando(true);
+    setErrorAgregar(null);
+    try {
+      const resp = await fetch(`/api/geocode?nombre=${encodeURIComponent(nombre)}`);
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.error || 'No se pudo encontrar ese lugar');
+      const nueva = { nombre: d.pais ? `${d.nombre}, ${d.pais}` : d.nombre, lat: d.lat, lon: d.lon };
+      const actualizado = [...ubicaciones, nueva];
+      setUbicaciones(actualizado);
+      saveUbicaciones(actualizado);
+      setInputValor('');
+    } catch (err) {
+      setErrorAgregar(err.message || 'Error al buscar el lugar');
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const quitarUbicacion = (nombre) => {
+    const actualizado = ubicaciones.filter((u) => u.nombre !== nombre);
+    setUbicaciones(actualizado);
+    saveUbicaciones(actualizado);
+  };
 
   return (
     <PanelShell title="Clima">
@@ -129,34 +192,25 @@ export function WeatherPanel() {
                 )}
               </div>
               {!u.error && <span style={styles.weatherTemp}>{u.temp}°</span>}
+              <button style={styles.removeBtn} onClick={() => quitarUbicacion(u.nombre)} title="Quitar">✕</button>
             </div>
           ))}
         </div>
       )}
-      <p style={styles.fuente}>Fuente: Open-Meteo</p>
-    </PanelShell>
-  );
-}
-
-export function MarketPanel() {
-  const { data, error, loading } = useMarketData();
-
-  return (
-    <PanelShell title="Mercado">
-      {loading && <p style={styles.loadingText}>Cargando indicadores…</p>}
-      {error && <p style={styles.errorText}>{error}</p>}
-      {data && (
-        <>
-          <Row
-            label="IPSA"
-            value={data.ipsa?.valor ? fmtCLP(data.ipsa.valor) : 'No disponible'}
-            sub={data.ipsa?.variacion != null ? fmtPct(data.ipsa.variacion) : null}
-          />
-          <Row label="IPC mensual" value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'} />
-          <Row label="IPC 12 meses" value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'} />
-        </>
-      )}
-      <p style={styles.fuente}>IPSA: Bolsa de Santiago · IPC: INE / Banco Central de Chile</p>
+      <div style={styles.addRow}>
+        <input
+          style={styles.addInput}
+          placeholder="Agregar ciudad (ej: Temuco)"
+          value={inputValor}
+          onChange={(e) => setInputValor(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && agregarUbicacion()}
+        />
+        <button style={styles.addBtn} onClick={agregarUbicacion} disabled={buscando}>
+          {buscando ? '…' : '+'}
+        </button>
+      </div>
+      {errorAgregar && <p style={styles.errorText}>{errorAgregar}</p>}
+      <p style={styles.fuente}>Fuente: Open-Meteo. Puedes agregar cualquier ciudad de Chile o del mundo.</p>
     </PanelShell>
   );
 }
@@ -241,7 +295,7 @@ const styles = {
   weatherRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     padding: '8px 0',
     borderBottom: '1px solid var(--navy-800)',
   },
@@ -277,5 +331,40 @@ const styles = {
     fontWeight: 700,
     color: 'var(--gold-300)',
     flexShrink: 0,
+  },
+  removeBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--paper-100)',
+    opacity: 0.4,
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: '2px 4px',
+  },
+  addRow: {
+    display: 'flex',
+    gap: '6px',
+    marginTop: '12px',
+  },
+  addInput: {
+    flex: 1,
+    background: 'var(--navy-800)',
+    border: '1px solid var(--navy-700)',
+    borderRadius: '8px',
+    padding: '7px 10px',
+    color: 'var(--paper-050)',
+    fontSize: '0.75rem',
+    outline: 'none',
+  },
+  addBtn: {
+    background: 'var(--gold-500)',
+    color: 'var(--navy-950)',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '0 14px',
+    fontWeight: 700,
+    fontSize: '0.9rem',
+    cursor: 'pointer',
   },
 };
