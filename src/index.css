@@ -82,3 +82,33 @@ a:focus-visible {
     display: none;
   }
 }
+/* --- Cinta animada (ticker) para mobile: indicadores + clima --- */
+.ticker-wrap {
+  display: none;
+  overflow: hidden;
+  background: var(--navy-900);
+  border-bottom: 1px solid var(--navy-700);
+  padding: 8px 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker-scroll 32s linear infinite;
+}
+.ticker-wrap:hover .ticker-track {
+  animation-play-state: paused;
+}
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (max-width: 1100px) {
+  .ticker-wrap { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+  .ticker-wrap { overflow-x: auto; }
+}
