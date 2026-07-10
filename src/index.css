@@ -56,7 +56,7 @@ a:focus-visible {
 .layout-shell {
   display: flex;
   justify-content: center;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 22px;
   max-width: 1240px;
   margin: 0 auto;
@@ -65,19 +65,31 @@ a:focus-visible {
 .side-panel {
   width: 260px;
   flex-shrink: 0;
-  position: sticky;
-  top: 24px;
-}
-.side-panel {
-  width: 260px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 24px;
 }
 .side-panel-stack {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+/* Paneles fijos en pantallas anchas: position:fixed anclado al viewport,
+   independiente del alto del resto del layout, para que SIEMPRE queden
+   a la vista mientras se scrollea la columna central. Los valores de
+   left/right (620px = mitad de los 1240px de max-width del layout-shell)
+   replican dónde caerían los paneles si siguieran en flujo normal, así no
+   se mueven ni un pixel respecto al diseño original al pasar a fixed. */
+@media (min-width: 1101px) {
+  .side-panel {
+    position: fixed;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .layout-shell > .side-panel:first-child {
+    left: max(16px, calc(50% - 620px));
+  }
+  .layout-shell > .side-panel:last-child {
+    right: max(16px, calc(50% - 620px));
+  }
 }
 /* En pantallas angostas (celular/tablet) se ocultan los paneles laterales
    para no romper el diseño mobile-first original de la app. El !important
