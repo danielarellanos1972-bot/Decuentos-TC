@@ -163,7 +163,8 @@ export default function App() {
 
 const styles = {
   page: {
-    minHeight: '100vh', maxWidth: '480px', margin: '0 auto', padding: '24px 18px 40px',
+    minHeight: '100vh', maxWidth: '480px', width: '100%', margin: '0 auto',
+    padding: '24px 18px 40px', overflowX: 'hidden', boxSizing: 'border-box',
   },
   header: { marginBottom: '26px' },
   eyebrow: {
