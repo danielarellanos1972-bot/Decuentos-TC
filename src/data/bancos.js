@@ -20,9 +20,11 @@ export const BANCOS_CHILE = [
 
 export const TARJETAS_PRECARGADAS = [
   { id: 'seed-1', banco: 'Scotiabank', nombre: 'Scotiabank Signature', tipo: 'Crédito' },
-  { id: 'seed-2', banco: 'Falabella (CMR)', nombre: 'CMR Falabella Mastercard', tipo: 'Crédito' },
-  { id: 'seed-3', banco: 'BCI', nombre: 'BCI Mastercard Black', tipo: 'Crédito' },
-  { id: 'seed-4', banco: 'Santander', nombre: 'Santander LifeMiles', tipo: 'Crédito' },
+  { id: 'seed-2', banco: 'Scotiabank', nombre: 'Singular', tipo: 'Crédito' },
+  { id: 'seed-3', banco: 'Scotiabank', nombre: 'Visa Infinite', tipo: 'Crédito' },
+  { id: 'seed-4', banco: 'Banco de Chile / Edwards', nombre: 'Visa Infinite', tipo: 'Crédito' },
+  { id: 'seed-5', banco: 'Santander', nombre: 'Amex Limited', tipo: 'Crédito' },
+  { id: 'seed-6', banco: 'Itaú', nombre: 'Mastercard Black', tipo: 'Crédito' },
 ];
 
 export const CATEGORIAS = [
