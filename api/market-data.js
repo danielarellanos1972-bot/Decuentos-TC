@@ -1,3 +1,4 @@
+// api/market-data.js
 // Vercel Serverless Function
 // GET /api/market-data
 //
@@ -62,9 +63,15 @@ async function getIpcAnual() {
     const serie = [...(dataActual.serie || []), ...(dataAnterior.serie || [])]
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
       .slice(0, 12);
-    if (serie.length < 6) return null; // muy pocos datos para un acumulado confiable
+    if (serie.length < 12) return null; // necesitamos los 12 meses completos para que cuadre con el dato oficial
     const factor = serie.reduce((acc, m) => acc * (1 + (m.valor || 0) / 100), 1);
-    return { valor: (factor - 1) * 100, meses: serie.length };
+    const valor = (factor - 1) * 100;
+    // Filtro de sensatez: la inflación anual de Chile no se ha movido fuera de este
+    // rango en la última década. Si mindicador.cl entrega datos incompletos o
+    // corruptos el cálculo puede dispararse; en ese caso preferimos "No disponible"
+    // antes que mostrar un número inventado.
+    if (!Number.isFinite(valor) || valor < -5 || valor > 20) return null;
+    return { valor, fecha: serie[0]?.fecha || null, meses: serie.length };
   } catch {
     return null;
   }
