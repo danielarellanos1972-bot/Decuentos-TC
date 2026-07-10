@@ -60,7 +60,7 @@ export default function CardManager({ tarjetas, onAdd, onDelete, seleccionada, o
             >
               <div style={styles.cardScrim} />
               <div style={styles.cardTop}>
-                <span style={{ ...styles.chip, background: `${colores.text}` }} />
+                <span style={styles.chip} />
                 <button
                   style={{ ...styles.deleteBtn, color: colores.text }}
                   onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
@@ -128,7 +128,8 @@ const styles = {
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', position: 'relative' },
   chip: {
-    width: '22px', height: '16px', borderRadius: '3px', opacity: 0.85,
+    width: '22px', height: '16px', borderRadius: '3px',
+    background: 'linear-gradient(135deg, var(--gold-300), var(--gold-500))',
     display: 'inline-block',
   },
   deleteBtn: {
