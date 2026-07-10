@@ -56,11 +56,17 @@ a:focus-visible {
 .layout-shell {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 22px;
   max-width: 1240px;
   margin: 0 auto;
   padding: 24px 16px;
+}
+.side-panel {
+  width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
 }
 .side-panel {
   width: 260px;
