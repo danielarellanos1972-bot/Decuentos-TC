@@ -5,8 +5,13 @@ import { getRelojes, saveRelojes, resolverZonaHoraria } from '../utils/worldCloc
 const fmtCLP = (n) =>
   n == null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 2 });
 
-const fmtPct = (n) =>
-  n == null ? '—' : `${n > 0 ? '+' : ''}${n.toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`;
+const fmtPeriodo = (fechaISO) => {
+     if (!fechaISO) return null;
+     const d = new Date(fechaISO);
+     if (Number.isNaN(d.getTime())) return null;
+     const texto = d.toLocaleDateString('es-CL', { month: 'short', year: 'numeric' });
+     return texto.charAt(0).toUpperCase() + texto.slice(1);
+   };
 
 const hoyFormateado = () =>
   new Date().toLocaleDateString('es-CL', {
