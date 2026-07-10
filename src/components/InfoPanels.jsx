@@ -108,11 +108,31 @@ export function MarketPanel() {
               sub={idx.variacion != null ? fmtPct(idx.variacion) : null}
             />
           ))}
-          <Row label="IPC mensual" value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'} />
-          <Row label="IPC 12 meses" value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'} />
-          <Row label="🟠 Cobre (lb)" value={data.cobre?.valor != null ? `$${fmtCLP(data.cobre.valor)}` : '—'} />
-          <Row label="TPM" value={data.tpm?.valor != null ? `${fmtCLP(data.tpm.valor)}%` : '—'} />
-          <Row label="Desempleo" value={data.desempleo?.valor != null ? `${fmtCLP(data.desempleo.valor)}%` : '—'} />
+          <Row
+            label="IPC mensual"
+            value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'}
+            sub={fmtPeriodo(data.ipcMensual?.fecha)}
+          />
+          <Row
+            label="IPC 12 meses"
+            value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'}
+            sub={fmtPeriodo(data.ipcAnual?.fecha)}
+          />
+          <Row
+            label="🟠 Cobre (lb)"
+            value={data.cobre?.valor != null ? `$${fmtCLP(data.cobre.valor)}` : '—'}
+            sub={fmtPeriodo(data.cobre?.fecha)}
+          />
+          <Row
+            label="TPM"
+            value={data.tpm?.valor != null ? `${fmtCLP(data.tpm.valor)}%` : '—'}
+            sub={fmtPeriodo(data.tpm?.fecha)}
+          />
+          <Row
+            label="Desempleo"
+            value={data.desempleo?.valor != null ? `${fmtCLP(data.desempleo.valor)}%` : '—'}
+            sub={fmtPeriodo(data.desempleo?.fecha)}
+          />
         </>
       )}
       <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC, cobre, TPM y desempleo: INE / Banco Central de Chile</p>
