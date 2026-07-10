@@ -112,15 +112,15 @@ export function MarketPanel() {
             />
           ))}
           <Row
-            label="IPC mensual"
-            value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'}
-            sub={fmtPeriodo(data.ipcMensual?.fecha)}
-          />
-          <Row
-            label="IPC 12 meses"
-            value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'}
-            sub={fmtPeriodo(data.ipcAnual?.fecha)}
-          />
+               label="IPC mensual"
+               value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'}
+               sub={[fmtPeriodo(data.ipcMensual?.fecha), data.ipcMensual?.respaldo ? '(manual)' : null].filter(Boolean).join(' ')}
+             />
+             <Row
+               label="IPC 12 meses"
+               value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'}
+               sub={[fmtPeriodo(data.ipcAnual?.fecha), data.ipcAnual?.respaldo ? '(manual)' : null].filter(Boolean).join(' ')}
+             />
           <Row
             label="🟠 Cobre (lb)"
             value={data.cobre?.valor != null ? `$${fmtCLP(data.cobre.valor)}` : '—'}
