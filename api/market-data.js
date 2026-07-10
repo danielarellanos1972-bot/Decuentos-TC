@@ -25,6 +25,29 @@ const fetchConTimeout = (url, options, timeoutMs) => {
 
 const HEADERS_MINDICADOR = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)' };
 
+// mindicador.cl a veces deja de actualizar un indicador puntual (le ha pasado
+// al IPC) aunque el resto de la API siga funcionando. Esta función descarta
+// datos más viejos que `maxDias`, para no mostrar un número desactualizado
+// como si fuera el vigente.
+function esReciente(fechaISO, maxDias) {
+  if (!fechaISO) return false;
+  const fecha = new Date(fechaISO);
+  if (Number.isNaN(fecha.getTime())) return false;
+  const diffDias = (Date.now() - fecha.getTime()) / (24 * 60 * 60 * 1000);
+  return diffDias <= maxDias;
+}
+
+// Respaldo manual del IPC oficial (INE), usado SOLO si mindicador.cl entrega
+// un dato más viejo que ~55 días (es decir, si dejó de actualizarse).
+// ⚠️ Actualizar estos 3 valores el día que salga el nuevo IPC (INE publica
+// ~el día 8 de cada mes, ver ine.gob.cl): mensual, acumulado 12 meses, y la
+// fecha (primer día del mes que informa el boletín).
+const IPC_FALLBACK = {
+  mensual: 0.0,
+  anual: 4.3,
+  fecha: '2026-06-01',
+};
+
 async function getIndicadoresBase() {
   for (let intento = 1; intento <= 2; intento++) {
     try {
@@ -64,6 +87,8 @@ async function getIpcAnual() {
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
       .slice(0, 12);
     if (serie.length < 12) return null; // necesitamos los 12 meses completos para que cuadre con el dato oficial
+    const fechaMasReciente = serie[0]?.fecha || null;
+    if (!esReciente(fechaMasReciente, 55)) return null; // mindicador.cl dejó de actualizar este indicador
     const factor = serie.reduce((acc, m) => acc * (1 + (m.valor || 0) / 100), 1);
     const valor = (factor - 1) * 100;
     // Filtro de sensatez: la inflación anual de Chile no se ha movido fuera de este
@@ -71,7 +96,7 @@ async function getIpcAnual() {
     // corruptos el cálculo puede dispararse; en ese caso preferimos "No disponible"
     // antes que mostrar un número inventado.
     if (!Number.isFinite(valor) || valor < -5 || valor > 20) return null;
-    return { valor, fecha: serie[0]?.fecha || null, meses: serie.length };
+    return { valor, fecha: fechaMasReciente, meses: serie.length };
   } catch {
     return null;
   }
@@ -113,7 +138,7 @@ export default async function handler(req, res) {
   }
 
   const usdClp = base?.dolar?.valor || null;
-  const [cadClp, ipcAnual, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
+  const [cadClp, ipcAnualCalculado, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
     getCadClp(usdClp),
     getIpcAnual(),
     getQuote('^IPSA', 'IPSA'),
@@ -125,6 +150,13 @@ export default async function handler(req, res) {
     getQuote('GC=F', 'Oro'),
   ]);
 
+  // El IPC mensual de mindicador.cl se descarta si quedó desactualizado (>55 días);
+  // en ese caso se usa el respaldo manual (IPC_FALLBACK) en vez de "No disponible",
+  // ya que es un dato que sí tenemos confirmado y actualizamos a mano cada mes.
+  const ipcMensualMindicador = base?.ipc && esReciente(base.ipc.fecha, 55) ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null;
+  const ipcMensual = ipcMensualMindicador || { valor: IPC_FALLBACK.mensual, fecha: IPC_FALLBACK.fecha, respaldo: true };
+  const ipcAnual = ipcAnualCalculado || { valor: IPC_FALLBACK.anual, fecha: IPC_FALLBACK.fecha, respaldo: true };
+
   return res.status(200).json({
     fecha: new Date().toISOString(),
     avisoBase,
@@ -133,8 +165,8 @@ export default async function handler(req, res) {
     usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
     cad: cadClp ? { valor: cadClp } : null,
     eur: base?.euro ? { valor: base.euro.valor, fecha: base.euro.fecha } : null,
-    ipcMensual: base?.ipc ? { valor: base.ipc.valor, fecha: base.ipc.fecha } : null,
-    ipcAnual: ipcAnual,
+    ipcMensual,
+    ipcAnual,
     cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
     tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
     desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
