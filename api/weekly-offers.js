@@ -38,16 +38,13 @@ export default async function handler(req, res) {
   const mesActual = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
   const zona = comuna ? `${comuna}, ${region}` : region;
 
-  const MAX_CHARS_POR_RESULTADO = 3000; // margen de seguridad extra bajo el límite de 6.000 tokens/minuto
-  const MIN_CHARS_UTILES = 800; // debajo de esto probablemente es solo menú/navegación, no contenido real
+  const MAX_CHARS_POR_RESULTADO = 3000;
+  const MIN_CHARS_UTILES = 800;
   const contenidoEsUtil = (texto) => texto.trim().length >= MIN_CHARS_UTILES && texto.includes('%');
 
   let rawResults = '';
   let fuenteMetodo = 'extract';
 
-  // Ponemos límite de tiempo a cada llamada externa: si una página tarda demasiado en
-  // responder, preferimos pasar al siguiente método antes que dejar que Vercel mate
-  // la función completa por exceder su límite de tiempo (lo que da un error confuso).
   const fetchConTimeout = (url, options, timeoutMs) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -63,7 +60,7 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ api_key: TAVILY_API_KEY, urls, extract_depth: 'advanced' }),
-        }, 4500);
+        }, 3000);
 
         if (extractResp.ok) {
           const extractData = await extractResp.json();
@@ -89,7 +86,7 @@ export default async function handler(req, res) {
           search_depth: 'basic',
           max_results: 6,
         }),
-      }, 4000);
+      }, 2500);
 
       if (!tavilyResp.ok) {
         const errText = await tavilyResp.text();
@@ -109,7 +106,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ofertasPorDia: [], mensaje: 'No se encontraron resultados en la búsqueda web.' });
     }
 
-    const groqResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const groqResp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -144,7 +141,7 @@ export default async function handler(req, res) {
           },
         ],
       }),
-    });
+    }, 2500);
 
     if (!groqResp.ok) {
       const errText = await groqResp.text();
@@ -200,6 +197,7 @@ export default async function handler(req, res) {
       /adherid[oa]s?\s+a/i,
       /asociad[oa]s?\s+a/i,
       /participantes?\b/i,
+      /\//,
     ];
     const esGenerico = (nombre) => PATRONES_GENERICOS.some((rx) => rx.test(nombre.trim()));
 
@@ -208,6 +206,9 @@ export default async function handler(req, res) {
       'columbia', 'doite', 'falabella', 'ripley', 'paris', 'la polar', 'sodimac',
       'homecenter', 'líder', 'lider', 'jumbo', 'tottus', 'farmacias ahumada',
       'cruz verde', 'salcobrand', 'easy',
+      'banco internacional', 'banco de chile', 'bancoestado', 'banco estado', 'banco security',
+      'banco consorcio', 'banco falabella', 'banco ripley', 'coopeuch', 'scotiabank',
+      'santander', 'itaú', 'itau', 'bci',
     ];
     const CIUDADES_FUERA_DE_RM = [
       'antofagasta', 'iquique', 'arica', 'concepción', 'concepcion', 'temuco',
@@ -216,7 +217,7 @@ export default async function handler(req, res) {
     ];
     const esNoConfiable = (nombre) => {
       const n = nombre.trim().toLowerCase();
-      return MARCAS_NO_GASTRONOMICAS.some((m) => n.includes(m)) || CIUDADES_FUERA_DE_RM.some((c) => n.startsWith(c));
+      return MARCAS_NO_GASTRONOMICAS.some((m) => n.includes(m)) || CIUDADES_FUERA_DE_RM.some((c) => n.includes(c));
     };
 
     const vistos = new Set();
