@@ -164,8 +164,8 @@ function CardPattern({ type }) {
 
 function Chip({ gradient }) {
   return (
-    <div style={{ width: '30px', height: '22px', borderRadius: '5px', background: gradient, position: 'relative', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.3)', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', inset: '3px', border: '1px solid rgba(0,0,0,0.35)', borderRadius: '2px' }} />
+    <div style={{ width: '19px', height: '14px', borderRadius: '3px', background: gradient, position: 'relative', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.3)', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', inset: '2px', border: '1px solid rgba(0,0,0,0.35)', borderRadius: '1px' }} />
       <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'rgba(0,0,0,0.3)' }} />
       <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: 'rgba(0,0,0,0.3)' }} />
     </div>
@@ -174,29 +174,29 @@ function Chip({ gradient }) {
 
 function Contactless({ color }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ marginLeft: '5px', flexShrink: 0 }}>
-      <path d="M8 4a12 12 0 0 1 0 16" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-      <path d="M5 7a8 8 0 0 1 0 10" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.7" />
-      <path d="M2 10a4 4 0 0 1 0 4" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ marginLeft: '3px', flexShrink: 0 }}>
+      <path d="M8 4a12 12 0 0 1 0 16" stroke={color} strokeWidth="2.4" strokeLinecap="round" opacity="0.9" />
+      <path d="M5 7a8 8 0 0 1 0 10" stroke={color} strokeWidth="2.4" strokeLinecap="round" opacity="0.7" />
+      <path d="M2 10a4 4 0 0 1 0 4" stroke={color} strokeWidth="2.4" strokeLinecap="round" opacity="0.5" />
     </svg>
   );
 }
 
 function NetworkMark({ network, color }) {
   if (network === 'VISA') {
-    return <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 800, fontSize: '1rem', letterSpacing: '0.5px', color }}>VISA</span>;
+    return <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 800, fontSize: '0.68rem', letterSpacing: '0.3px', color }}>VISA</span>;
   }
   if (network === 'MASTERCARD') {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-        <span style={{ width: '15px', height: '15px', borderRadius: '50%', background: '#EB001B', opacity: 0.92 }} />
-        <span style={{ width: '15px', height: '15px', borderRadius: '50%', background: '#F79E1B', opacity: 0.92, marginLeft: '-7px' }} />
+        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#EB001B', opacity: 0.92 }} />
+        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#F79E1B', opacity: 0.92, marginLeft: '-4px' }} />
       </span>
     );
   }
   if (network === 'AMEX') {
     return (
-      <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em', color, border: `1px solid ${color}`, borderRadius: '3px', padding: '2px 5px', display: 'inline-block' }}>AMEX</span>
+      <span style={{ fontSize: '0.42rem', fontWeight: 700, letterSpacing: '0.03em', color, border: `1px solid ${color}`, borderRadius: '2px', padding: '1px 3px', display: 'inline-block' }}>AMEX</span>
     );
   }
   return null;
@@ -221,7 +221,7 @@ function CardFace({ t, isActive, onSelect, onDelete }) {
         boxShadow: isActive
           ? '0 0 0 3px var(--gold-500), 0 10px 22px rgba(0,0,0,0.4)'
           : '0 6px 14px rgba(0,0,0,0.32)',
-        padding: '14px 16px',
+        padding: '9px 10px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -233,10 +233,10 @@ function CardFace({ t, isActive, onSelect, onDelete }) {
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
         style={{
-          position: 'absolute', top: '8px', right: '8px', zIndex: 2,
+          position: 'absolute', top: '4px', right: '4px', zIndex: 2,
           background: 'rgba(0,0,0,0.35)', border: 'none', color: skin.text,
-          borderRadius: '50%', width: '20px', height: '20px', fontSize: '0.95rem',
-          lineHeight: 1, opacity: 0.75,
+          borderRadius: '50%', width: '15px', height: '15px', fontSize: '0.7rem',
+          lineHeight: 1, opacity: 0.75, padding: 0,
         }}
         aria-label={`Eliminar ${t.nombre}`}
       >
@@ -247,14 +247,14 @@ function CardFace({ t, isActive, onSelect, onDelete }) {
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           {skin.badge && (
-            <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.08em', opacity: 0.85, marginBottom: '3px' }}>
+            <div style={{ fontSize: '0.4rem', fontWeight: 700, letterSpacing: '0.06em', opacity: 0.85, marginBottom: '2px' }}>
               {skin.badge}
             </div>
           )}
           {skin.logo && (
             <div style={{
               fontFamily: skin.logoFont === 'serif' ? 'Georgia, serif' : 'var(--font-body)',
-              fontWeight: 800, fontSize: '0.88rem',
+              fontWeight: 800, fontSize: '0.58rem',
             }}>
               {skin.logo}
             </div>
@@ -269,39 +269,39 @@ function CardFace({ t, isActive, onSelect, onDelete }) {
       {/* Centro: script tipo "Singular" / "World Member Limited" */}
       {skin.script && (
         <div style={{ position: 'relative', zIndex: 1, textAlign: skinKey === 'scotiabank-singular' ? 'center' : 'left' }}>
-          <div style={{ fontFamily: "'Brush Script MT','Segoe Script', cursive", fontSize: skinKey === 'scotiabank-singular' ? '1.6rem' : '1.05rem', lineHeight: 1.1 }}>
+          <div style={{ fontFamily: "'Brush Script MT','Segoe Script', cursive", fontSize: skinKey === 'scotiabank-singular' ? '1rem' : '0.72rem', lineHeight: 1.1 }}>
             {skin.script.title}
           </div>
-          <div style={{ fontSize: '0.62rem', opacity: 0.85, marginTop: '2px' }}>{skin.script.subtitle}</div>
+          <div style={{ fontSize: '0.42rem', opacity: 0.85, marginTop: '1px' }}>{skin.script.subtitle}</div>
         </div>
       )}
 
       {/* Número enmascarado */}
-      <div style={{ position: 'relative', zIndex: 1, fontFamily: 'var(--font-mono)', fontSize: '0.78rem', letterSpacing: '0.1em', opacity: 0.92 }}>
+      <div style={{ position: 'relative', zIndex: 1, fontFamily: 'var(--font-mono)', fontSize: '0.5rem', letterSpacing: '0.06em', opacity: 0.92 }}>
         {MASKED_NUMBER}
       </div>
 
       {/* Fila inferior: titular + red/marca */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <div style={{ fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.02em' }}>{HOLDER_NAME}</div>
-          <div style={{ fontSize: '0.56rem', opacity: 0.75, marginTop: '2px' }}>{t.nombre}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '0.4rem', fontWeight: 600, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>{HOLDER_NAME}</div>
+          <div style={{ fontSize: '0.36rem', opacity: 0.75, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.nombre}</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '4px' }}>
           {skin.brandMark === 'itau' ? (
-            <div style={{ background: '#fff', color: '#111', fontWeight: 800, fontSize: '0.68rem', padding: '3px 7px', borderRadius: '4px', display: 'inline-block' }}>
+            <div style={{ background: '#fff', color: '#111', fontWeight: 800, fontSize: '0.42rem', padding: '2px 4px', borderRadius: '3px', display: 'inline-block' }}>
               itaú
             </div>
           ) : (
             <>
               <NetworkMark network={skin.network} color={skin.text} />
-              {skin.productLabel && <div style={{ fontSize: '0.56rem', opacity: 0.85, marginTop: '2px' }}>{skin.productLabel}</div>}
+              {skin.productLabel && <div style={{ fontSize: '0.36rem', opacity: 0.85, marginTop: '1px' }}>{skin.productLabel}</div>}
             </>
           )}
         </div>
       </div>
 
-      {skin.accent && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '5px', background: skin.accent }} />}
+      {skin.accent && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '4px', background: skin.accent }} />}
     </div>
   );
 }
@@ -387,7 +387,7 @@ const styles = {
     borderRadius: '8px', padding: '10px', fontWeight: 700,
   },
   grid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '14px',
+    display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px',
   },
   empty: { color: 'var(--paper-100)', opacity: 0.6, fontSize: '0.9rem' },
 };
