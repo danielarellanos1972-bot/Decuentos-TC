@@ -95,7 +95,7 @@ export default function Calculator() {
 
 const styles = {
   section: { marginTop: '32px' },
-  h2: { fontFamily: 'var(--font-display)', fontSize: '1.15rem', margin: '0 0 12px' },
+  h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   loadingText: { fontSize: '0.85rem', opacity: 0.6, margin: 0 },
   errorText: { fontSize: '0.85rem', color: 'var(--coral-500)', margin: 0 },
   inputRow: {
