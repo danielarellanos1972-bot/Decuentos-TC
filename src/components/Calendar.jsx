@@ -131,7 +131,7 @@ export default function Calendar() {
             <p style={styles.sinEventos}>Sin actividades para este día.</p>
           )}
           {eventosDelDiaSel.map((ev) => (
-            
+            <a
               key={ev.id}
               href={ev.link || undefined}
               target="_blank"
