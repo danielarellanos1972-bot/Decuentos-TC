@@ -93,7 +93,7 @@ export default function App() {
         </aside>
         <div style={styles.page}>
           <header style={styles.header}>
-            <p style={styles.eyebrow}>Descuentos con Tarjeta · Chile</p>
+            <p style={styles.eyebrow}>Utilidades y Servicios</p>
             <h1 style={styles.h1}>Beneficios TC</h1>
             <p style={styles.sub}>Descuentos vigentes en restaurantes y comercios, por banco y tarjeta.</p>
           </header>
@@ -171,8 +171,8 @@ const styles = {
   },
   header: { marginBottom: '26px' },
   eyebrow: {
-    fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em',
-    color: 'var(--gold-300)', margin: '0 0 6px', fontWeight: 600,
+    fontSize: '1.5rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em',
+    color: 'var(--gold-300)', margin: '0 0 10px', fontWeight: 700, fontFamily: 'var(--font-display)',
   },
   h1: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   sub: { fontSize: '0.92rem', opacity: 0.7, margin: 0, lineHeight: 1.5 },
