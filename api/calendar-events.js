@@ -91,6 +91,7 @@ export default async function handler(req, res) {
       todoElDia: !ev.start?.dateTime,
       lugar: ev.location || null,
       link: ev.htmlLink || null,
+      fuente: 'google',
     }));
 
     return res.status(200).json({ eventos });
