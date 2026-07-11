@@ -153,7 +153,7 @@ export default function Calendar() {
 
 const styles = {
   wrap: { marginTop: '28px' },
-  h2: { fontFamily: 'var(--font-display)', fontSize: '1.15rem', margin: '0 0 12px' },
+  h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   card: {
     background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
     borderRadius: '14px', padding: '18px 16px',
