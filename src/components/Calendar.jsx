@@ -170,7 +170,7 @@ export default function Calendar() {
           {eventosDelDiaSel.map((ev) => {
             const fuenteInfo = FUENTES[ev.fuente] || FUENTES.google;
             return (
-              
+              <a
                 key={ev.id}
                 href={ev.link || undefined}
                 target="_blank"
