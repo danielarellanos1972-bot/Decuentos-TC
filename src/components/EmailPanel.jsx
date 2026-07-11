@@ -3,9 +3,23 @@ import { useEffect, useState } from 'react';
 // Mismos colores de marca usados en el Calendario, para que Google/Outlook
 // se reconozcan de un vistazo en toda la app.
 const FUENTES = {
-  gmail: { color: 'var(--mint-300)', etiqueta: 'Correo Google', url: 'https://mail.google.com/mail/u/0/#inbox' },
-  outlook: { color: '#4FA0E0', etiqueta: 'Correo Outlook', url: 'https://outlook.live.com/mail/0/inbox' },
+  gmail: { color: 'var(--mint-300)', etiqueta: 'Correo Google', urlWeb: 'https://mail.google.com/mail/u/0/#inbox' },
+  outlook: { color: '#4FA0E0', etiqueta: 'Correo Outlook', urlWeb: 'https://outlook.live.com/mail/0/inbox' },
 };
+
+// En Mac abre la app nativa de Outlook (donde Nano tiene ambas cuentas
+// agregadas); en iPhone abre la app Mail nativa de Apple. En cualquier otro
+// dispositivo (Windows, Android, etc.) se usa el link web normal como
+// respaldo.
+function obtenerUrlDestino(fuente) {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const esIOS = /iPhone|iPad|iPod/.test(ua);
+  const esMac = /Macintosh/.test(ua) && !esIOS;
+
+  if (esIOS) return 'message://';
+  if (esMac) return 'ms-outlook://';
+  return fuente.urlWeb;
+}
 
 export default function EmailPanel() {
   const [data, setData] = useState(null);
@@ -27,7 +41,7 @@ export default function EmailPanel() {
     const cantidad = info?.unread;
 
     return (
-      <a href={fuente.url} target="_blank" rel="noreferrer" style={styles.fila}>
+      <a href={obtenerUrlDestino(fuente)} target="_blank" rel="noreferrer" style={styles.fila}>
         <div style={styles.filaIzq}>
           <span style={{ ...styles.punto, background: fuente.color }} />
           <span style={styles.filaLabel}>{fuente.etiqueta}</span>
@@ -57,7 +71,7 @@ export default function EmailPanel() {
         {renderFila('gmail', data?.gmail)}
         <div style={styles.divider} />
         {renderFila('outlook', data?.outlook)}
-        <p style={styles.fuenteNota}>Toca una fila para abrir la bandeja de entrada.</p>
+        <p style={styles.fuenteNota}>Toca una fila para abrir tu correo (app de Outlook en Mac, Mail en iPhone).</p>
       </div>
     </section>
   );
