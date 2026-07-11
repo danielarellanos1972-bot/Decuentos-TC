@@ -82,7 +82,7 @@ export default function BankLinks() {
 
 const styles = {
   section: { marginTop: '32px' },
-  h2: { fontFamily: 'var(--font-display)', fontSize: '1.15rem', margin: '0 0 12px' },
+  h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
