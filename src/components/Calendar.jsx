@@ -6,6 +6,12 @@ const MESES = [
 ];
 const DIAS_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
+// Colores/etiquetas por fuente, para distinguir Google de Outlook a simple vista.
+const FUENTES = {
+  google: { color: 'var(--mint-300)', etiqueta: 'Google' },
+  outlook: { color: '#4FA0E0', etiqueta: 'Outlook' },
+};
+
 function claveFecha(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -41,15 +47,38 @@ export default function Calendar() {
     let activo = true;
     setLoading(true);
     setError(null);
-    fetch(`/api/calendar-events?year=${anio}&month=${mesIndex0 + 1}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!activo) return;
-        if (d.error) setError(d.error);
-        else setEventos(d.eventos || []);
-      })
-      .catch(() => activo && setError('No se pudo conectar con Google Calendar.'))
-      .finally(() => activo && setLoading(false));
+
+    Promise.allSettled([
+      fetch(`/api/calendar-events?year=${anio}&month=${mesIndex0 + 1}`).then((r) => r.json()),
+      fetch(`/api/outlook-events?year=${anio}&month=${mesIndex0 + 1}`).then((r) => r.json()),
+    ]).then(([googleRes, outlookRes]) => {
+      if (!activo) return;
+
+      const avisos = [];
+      let combinados = [];
+
+      if (googleRes.status === 'fulfilled' && !googleRes.value.error) {
+        combinados = combinados.concat(
+          (googleRes.value.eventos || []).map((ev) => ({ ...ev, fuente: ev.fuente || 'google' }))
+        );
+      } else {
+        avisos.push('Google Calendar no disponible.');
+      }
+
+      if (outlookRes.status === 'fulfilled' && !outlookRes.value.error) {
+        combinados = combinados.concat(
+          (outlookRes.value.eventos || []).map((ev) => ({ ...ev, fuente: ev.fuente || 'outlook' }))
+        );
+      } else {
+        avisos.push('Outlook no disponible.');
+      }
+
+      setEventos(combinados);
+      // Si ambas fuentes fallan, es un error real; si solo falla una, es un
+      // aviso menor (la otra fuente igual se muestra con normalidad).
+      setError(avisos.length > 0 ? avisos.join(' ') : null);
+    }).finally(() => activo && setLoading(false));
+
     return () => {
       activo = false;
     };
@@ -63,6 +92,8 @@ export default function Calendar() {
       if (!mapa[clave]) mapa[clave] = [];
       mapa[clave].push(ev);
     });
+    // Dentro de cada día, ordena los eventos por hora de inicio.
+    Object.values(mapa).forEach((lista) => lista.sort((a, b) => (a.inicio > b.inicio ? 1 : -1)));
     return mapa;
   }, [eventos]);
 
@@ -101,7 +132,7 @@ export default function Calendar() {
           {celdas.map((fecha, i) => {
             if (!fecha) return <div key={`vacio-${i}`} />;
             const clave = claveFecha(fecha);
-            const tieneEventos = (eventosPorDia[clave] || []).length > 0;
+            const fuentesDelDia = [...new Set((eventosPorDia[clave] || []).map((ev) => ev.fuente))];
             const esHoy = clave === claveHoy;
             const esSeleccionado = clave === diaSeleccionado;
             return (
@@ -115,7 +146,13 @@ export default function Calendar() {
                 }}
               >
                 {fecha.getDate()}
-                {tieneEventos && <span style={styles.puntoEvento} />}
+                {fuentesDelDia.length > 0 && (
+                  <span style={styles.puntosWrap}>
+                    {fuentesDelDia.map((f) => (
+                      <span key={f} style={{ ...styles.puntoEvento, background: FUENTES[f]?.color || 'var(--mint-300)' }} />
+                    ))}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -130,22 +167,28 @@ export default function Calendar() {
           {eventosDelDiaSel.length === 0 && !loading && (
             <p style={styles.sinEventos}>Sin actividades para este día.</p>
           )}
-          {eventosDelDiaSel.map((ev) => (
-            <a
-              key={ev.id}
-              href={ev.link || undefined}
-              target="_blank"
-              rel="noreferrer"
-              style={styles.eventoItem}
-            >
-              <span style={styles.eventoHora}>{ev.todoElDia ? 'Todo el día' : (formatearHora(ev.inicio) || '')}</span>
-              <span style={styles.eventoTitulo}>{ev.titulo}</span>
-              {ev.lugar && <span style={styles.eventoLugar}>{ev.lugar}</span>}
-            </a>
-          ))}
+          {eventosDelDiaSel.map((ev) => {
+            const fuenteInfo = FUENTES[ev.fuente] || FUENTES.google;
+            return (
+              
+                key={ev.id}
+                href={ev.link || undefined}
+                target="_blank"
+                rel="noreferrer"
+                style={{ ...styles.eventoItem, borderLeft: `3px solid ${fuenteInfo.color}` }}
+              >
+                <div style={styles.eventoTopRow}>
+                  <span style={styles.eventoHora}>{ev.todoElDia ? 'Todo el día' : (formatearHora(ev.inicio) || '')}</span>
+                  <span style={{ ...styles.eventoFuente, color: fuenteInfo.color }}>{fuenteInfo.etiqueta}</span>
+                </div>
+                <span style={styles.eventoTitulo}>{ev.titulo}</span>
+                {ev.lugar && <span style={styles.eventoLugar}>{ev.lugar}</span>}
+              </a>
+            );
+          })}
         </div>
 
-        <p style={styles.fuente}>Conectado a tu Google Calendar principal.</p>
+        <p style={styles.fuenteNota}>Conectado a tu Google Calendar y tu Outlook.</p>
       </div>
     </section>
   );
@@ -182,10 +225,11 @@ const styles = {
   },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
-  puntoEvento: {
-    position: 'absolute', bottom: '4px', width: '4px', height: '4px', borderRadius: '50%',
-    background: 'var(--mint-300)',
+  puntosWrap: {
+    position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)',
+    display: 'flex', gap: '2px',
   },
+  puntoEvento: { width: '4px', height: '4px', borderRadius: '50%' },
   detalleDia: {
     borderTop: '1px solid var(--navy-700)', paddingTop: '14px',
     display: 'flex', flexDirection: 'column', gap: '8px',
@@ -198,8 +242,10 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: '2px', background: 'var(--navy-800)',
     borderRadius: '8px', padding: '8px 10px', textDecoration: 'none', color: 'inherit',
   },
+  eventoTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   eventoHora: { fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--mint-300)' },
+  eventoFuente: { fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' },
   eventoTitulo: { fontSize: '0.85rem', fontWeight: 600 },
   eventoLugar: { fontSize: '0.72rem', opacity: 0.6 },
-  fuente: { fontSize: '0.65rem', opacity: 0.45, margin: '14px 0 0' },
+  fuenteNota: { fontSize: '0.65rem', opacity: 0.45, margin: '14px 0 0' },
 };
