@@ -10,6 +10,39 @@ function faviconUrl(url) {
   }
 }
 
+// IDs reales de App Store para los bancos que Nano usa (Scotiabank, Banco de
+// Chile, Santander, Itaú). Para cualquier otro banco que se agregue, se cae
+// a una búsqueda dentro de la tienda — funciona igual, solo un toque extra.
+const APPS_BANCARIAS = [
+  { match: /scotia/i, iosId: 1309863707 },
+  { match: /banco\s*de\s*chile|bancochile|edwards/i, iosId: 1516872542 },
+  { match: /santander/i, iosId: 604982236 },
+  { match: /ita[uú]/i, iosId: 636150714 },
+];
+
+// En el celular, en vez de abrir el sitio web del banco, se manda directo a
+// la ficha de la app en la tienda correspondiente: si ya está instalada, el
+// botón dice "Abrir"; si no, dice "Obtener/Instalar". En PC/Mac se mantiene
+// el comportamiento original (abrir el sitio web).
+function obtenerUrlDestino(nombreBanco, urlWeb) {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const esIOS = /iPhone|iPad|iPod/.test(ua);
+  const esAndroid = /Android/.test(ua);
+
+  if (!esIOS && !esAndroid) return urlWeb;
+
+  if (esIOS) {
+    const conocida = APPS_BANCARIAS.find((a) => a.match.test(nombreBanco));
+    return conocida
+      ? `https://apps.apple.com/cl/app/id${conocida.iosId}`
+      : `https://apps.apple.com/cl/search?term=${encodeURIComponent(nombreBanco)}`;
+  }
+
+  // Android: la búsqueda en Play Store funciona para cualquier banco sin
+  // necesitar el nombre exacto del paquete.
+  return `https://play.google.com/store/search?q=${encodeURIComponent(nombreBanco)}&c=apps`;
+}
+
 export default function BankLinks() {
   const [bancos, setBancos] = useState(getBancos());
   const [nombre, setNombre] = useState('');
@@ -51,7 +84,7 @@ export default function BankLinks() {
         {bancos.map((b, i) => (
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(b.nombre)} title="Quitar">✕</button>
-            <a href={b.url} target="_blank" rel="noreferrer" style={styles.link}>
+            <a href={obtenerUrlDestino(b.nombre, b.url)} target="_blank" rel="noreferrer" style={styles.link}>
               <img src={faviconUrl(b.url)} alt="" style={styles.logo} />
               <span style={styles.name}>{b.nombre}</span>
             </a>
