@@ -44,12 +44,13 @@ const fetchConTimeout = (url, options, timeoutMs) => {
 
 async function getClimaUbicacion(u) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${u.lat}&longitude=${u.lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSantiago`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${u.lat}&longitude=${u.lon}&current=temperature_2m,weather_code,cloud_cover&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSantiago`;
     const resp = await fetchConTimeout(url, {}, 3500);
     if (!resp.ok) return { nombre: u.nombre, error: true };
     const data = await resp.json();
     const temp = data?.current?.temperature_2m;
     const code = data?.current?.weather_code;
+    const nubosidad = data?.current?.cloud_cover;
     const max = data?.daily?.temperature_2m_max?.[0];
     const min = data?.daily?.temperature_2m_min?.[0];
     const clima = CODIGO_CLIMA[code] || { texto: 'N/D', icono: '🌡️' };
@@ -60,6 +61,7 @@ async function getClimaUbicacion(u) {
       min: min != null ? Math.round(min) : null,
       texto: clima.texto,
       icono: clima.icono,
+      nubosidad: nubosidad != null ? Math.round(nubosidad) : null,
     };
   } catch {
     return { nombre: u.nombre, error: true };
