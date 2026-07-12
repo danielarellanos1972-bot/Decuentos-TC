@@ -6,6 +6,7 @@ import WeeklyOffers from './components/WeeklyOffers.jsx';
 import { DateFXPanel, MarketPanel, WeatherPanel, WorldClockPanel } from './components/InfoPanels.jsx';
 import Ticker from './components/Ticker.jsx';
 import BankLinks from './components/BankLinks.jsx';
+import WebLinks from './components/WebLinks.jsx';
 import Calendar from './components/Calendar.jsx';
 import EmailPanel from './components/EmailPanel.jsx';
 import Calculator from './components/Calculator.jsx';
@@ -148,6 +149,8 @@ export default function App() {
             <Calculator />
 
             <BankLinks />
+
+            <WebLinks />
 
             <Calendar />
 
