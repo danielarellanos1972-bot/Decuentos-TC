@@ -122,6 +122,47 @@ async function getQuote(ticker, label) {
   }
 }
 
+// IMACEC (actividad económica mensual) — Banco Central de Chile, vía la API
+// BDE (requiere las variables de entorno BCCH_USER / BCCH_PASS). Se muestra
+// como variación interanual (%), que es la cifra que habitualmente se cita
+// ("el IMACEC subió/bajó X% interanual"), calculada comparando el último
+// valor con el mismo mes del año anterior.
+async function getImacec() {
+  const { BCCH_USER, BCCH_PASS } = process.env;
+  if (!BCCH_USER || !BCCH_PASS) return null;
+  try {
+    const hoy = new Date();
+    const desde = new Date(hoy.getTime() - 400 * 24 * 60 * 60 * 1000);
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+      user: BCCH_USER,
+      pass: BCCH_PASS,
+      firstdate: fmt(desde),
+      lastdate: fmt(hoy),
+      timeseries: 'F032.IMC.IND.Z.Z.EP18.Z.Z.0.M',
+      function: 'GetSeries',
+    });
+    const resp = await fetchConTimeout(`https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?${params.toString()}`, {}, 6000);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const aIso = (raw) => {
+      const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(raw || '');
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : raw;
+    };
+    const puntos = (data?.Series?.Obs || [])
+      .map((o) => ({ fecha: aIso(o.indexDateString), valor: parseFloat(o.value) }))
+      .filter((p) => p.fecha && Number.isFinite(p.valor))
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    if (puntos.length === 0) return null;
+    const ultimo = puntos[puntos.length - 1];
+    const haceUnAnio = puntos.length >= 13 ? puntos[puntos.length - 13] : null;
+    const variacionAnual = haceUnAnio && haceUnAnio.valor ? ((ultimo.valor - haceUnAnio.valor) / haceUnAnio.valor) * 100 : null;
+    return { valor: variacionAnual, fecha: ultimo.fecha };
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -138,9 +179,10 @@ export default async function handler(req, res) {
   }
 
   const usdClp = base?.dolar?.valor || null;
-  const [cadClp, ipcAnualCalculado, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
+  const [cadClp, ipcAnualCalculado, imacec, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
     getCadClp(usdClp),
     getIpcAnual(),
+    getImacec(),
     getQuote('^IPSA', 'IPSA'),
     getQuote('^GSPC', 'S&P 500 (NY)'),
     getQuote('^STOXX50E', 'Europa (Stoxx 50)'),
@@ -170,6 +212,7 @@ export default async function handler(req, res) {
     cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
     tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
     desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
+    imacec: imacec,
     indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
   });
 }
