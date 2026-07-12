@@ -242,7 +242,7 @@ export function DateFXPanel() {
       {error && <p style={styles.errorText}>{error}</p>}
       {data?.avisoBase && <p style={styles.errorText}>{data.avisoBase}</p>}
       {data && (
-        <>
+        <div style={styles.rowGrid}>
           <Row
             label="🇨🇱 UF"
             value={`$${fmtCLP(data.uf?.valor)}`}
@@ -264,7 +264,7 @@ export function DateFXPanel() {
             onClick={() => setHistorialAbierto({ label: 'Euro', fuente: 'mindicador', codigo: 'euro' })}
           />
           <Row label="🇨🇦 Dólar Can. (CAD)" value={data.cad?.valor ? `$${fmtCLP(data.cad.valor)}` : 'No disponible'} />
-        </>
+        </div>
       )}
       {historialAbierto && (
         <IndicatorHistoryModal indicador={historialAbierto} onClose={() => setHistorialAbierto(null)} />
@@ -288,7 +288,7 @@ export function MarketPanel() {
       {error && <p style={styles.errorText}>{error}</p>}
       {data?.avisoBase && <p style={styles.errorText}>Cobre/TPM/desempleo no disponibles (mindicador.cl no respondió).</p>}
       {data && (
-        <>
+        <div style={styles.rowGrid}>
           {(data.indices || []).map((idx, i) => (
             <Row
               key={i}
@@ -337,7 +337,17 @@ export function MarketPanel() {
             sub={fmtPeriodo(data.desempleo?.fecha)}
             onClick={() => setHistorialAbierto({ label: 'Desempleo', fuente: 'mindicador', codigo: 'tasa_desempleo' })}
           />
-        </>
+          <Row
+            label="IMACEC (interanual)"
+            value={data.imacec?.valor != null ? fmtPct(data.imacec.valor) : 'No disponible'}
+            sub={fmtPeriodo(data.imacec?.fecha)}
+            onClick={
+              data.imacec?.valor != null
+                ? () => setHistorialAbierto({ label: 'IMACEC (nivel del índice)', fuente: 'bcentral', codigo: 'imacec' })
+                : undefined
+            }
+          />
+        </div>
       )}
       {historialAbierto && (
         <IndicatorHistoryModal indicador={historialAbierto} onClose={() => setHistorialAbierto(null)} />
@@ -839,19 +849,26 @@ const styles = {
     background: 'var(--navy-700)',
     margin: '0 0 12px',
   },
+  rowGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    columnGap: '10px',
+  },
   row: {
     display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: '4px',
+    flexDirection: 'column',
+    gap: '1px',
     padding: '7px 0',
     borderBottom: '1px solid var(--navy-800)',
+    minWidth: 0,
   },
   rowLabel: {
     fontSize: '0.78rem',
     opacity: 0.7,
     whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: 'block',
   },
   rowValueWrap: {
     display: 'flex',
