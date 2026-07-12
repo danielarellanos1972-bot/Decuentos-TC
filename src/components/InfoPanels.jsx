@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getUbicaciones, saveUbicaciones } from '../utils/weatherLocations.js';
 import { getRelojes, saveRelojes, resolverZonaHoraria } from '../utils/worldClock.js';
 
@@ -208,7 +209,7 @@ function WeatherDetailModal({ ubicacion, onClose }) {
 
   if (!ubicacion) return null;
 
-  return (
+  return createPortal(
     <div style={styles.modalFondo} onClick={onClose}>
       <div style={styles.modalCaja} onClick={(e) => e.stopPropagation()}>
         <button style={styles.modalCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
@@ -282,7 +283,8 @@ function WeatherDetailModal({ ubicacion, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
