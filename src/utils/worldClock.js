@@ -53,6 +53,34 @@ const normalizar = (s) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
+// Datos de referencia por zona horaria, para el popup con el reloj análogo.
+// Población en cifras aproximadas y recientes (no se actualizan en vivo,
+// cambian muy lento). Si se agrega una ciudad nueva cuya zona horaria no
+// está en esta tabla, el popup simplemente no muestra esta sección.
+export const DATOS_PAIS = {
+  'America/Santiago': { bandera: '🇨🇱', pais: 'Chile', capital: 'Santiago', poblacion: 19600000, moneda: 'Peso chileno (CLP)' },
+  'Pacific/Easter': { bandera: '🇨🇱', pais: 'Chile (Isla de Pascua / Rapa Nui)', capital: 'Hanga Roa', poblacion: 7750, moneda: 'Peso chileno (CLP)' },
+  'America/Toronto': { bandera: '🇨🇦', pais: 'Canadá', capital: 'Ottawa', poblacion: 40800000, moneda: 'Dólar canadiense (CAD)' },
+  'America/New_York': { bandera: '🇺🇸', pais: 'Estados Unidos', capital: 'Washington D.C.', poblacion: 335000000, moneda: 'Dólar estadounidense (USD)' },
+  'America/Los_Angeles': { bandera: '🇺🇸', pais: 'Estados Unidos', capital: 'Washington D.C.', poblacion: 335000000, moneda: 'Dólar estadounidense (USD)' },
+  'America/Mexico_City': { bandera: '🇲🇽', pais: 'México', capital: 'Ciudad de México', poblacion: 130000000, moneda: 'Peso mexicano (MXN)' },
+  'America/Lima': { bandera: '🇵🇪', pais: 'Perú', capital: 'Lima', poblacion: 34300000, moneda: 'Sol peruano (PEN)' },
+  'America/Argentina/Buenos_Aires': { bandera: '🇦🇷', pais: 'Argentina', capital: 'Buenos Aires', poblacion: 46000000, moneda: 'Peso argentino (ARS)' },
+  'Europe/Madrid': { bandera: '🇪🇸', pais: 'España', capital: 'Madrid', poblacion: 48600000, moneda: 'Euro (EUR)' },
+  'Europe/London': { bandera: '🇬🇧', pais: 'Reino Unido', capital: 'Londres', poblacion: 68300000, moneda: 'Libra esterlina (GBP)' },
+  'Europe/Paris': { bandera: '🇫🇷', pais: 'Francia', capital: 'París', poblacion: 68400000, moneda: 'Euro (EUR)' },
+  'Asia/Tokyo': { bandera: '🇯🇵', pais: 'Japón', capital: 'Tokio', poblacion: 123800000, moneda: 'Yen japonés (JPY)' },
+  'Australia/Sydney': { bandera: '🇦🇺', pais: 'Australia', capital: 'Canberra', poblacion: 26600000, moneda: 'Dólar australiano (AUD)' },
+  'America/Bogota': { bandera: '🇨🇴', pais: 'Colombia', capital: 'Bogotá', poblacion: 52000000, moneda: 'Peso colombiano (COP)' },
+  'America/Sao_Paulo': { bandera: '🇧🇷', pais: 'Brasil', capital: 'Brasília', poblacion: 216400000, moneda: 'Real brasileño (BRL)' },
+  'America/Panama': { bandera: '🇵🇦', pais: 'Panamá', capital: 'Ciudad de Panamá', poblacion: 4400000, moneda: 'Balboa / Dólar (PAB/USD)' },
+  'America/Montevideo': { bandera: '🇺🇾', pais: 'Uruguay', capital: 'Montevideo', poblacion: 3440000, moneda: 'Peso uruguayo (UYU)' },
+};
+
+export function getDatosPais(tz) {
+  return DATOS_PAIS[tz] || null;
+}
+
 // Devuelve la zona horaria IANA para un texto ingresado por el usuario, o
 // null si no se pudo reconocer. Acepta tanto nombres comunes ("Toronto")
 // como un identificador IANA directo ("America/Toronto").
