@@ -10,6 +10,28 @@ function faviconUrl(url) {
   }
 }
 
+// Spotify sí tiene un esquema de apertura oficial y bien documentado
+// (spotify:), a diferencia de los bancos chilenos. Si la app de escritorio
+// está instalada, el sistema operativo la abre directo; si no, después de
+// un momento breve sin cambiar de pantalla, cae de vuelta a la web. El
+// resto de "Webs de Interés" sigue yendo siempre directo a la web.
+function esSpotify(sitio) {
+  return /spotify/i.test(sitio.nombre) || /spotify\.com/i.test(sitio.url);
+}
+
+function manejarClic(e, sitio) {
+  if (!esSpotify(sitio)) return; // comportamiento normal: deja que el <a> navegue como siempre
+
+  e.preventDefault();
+  const timer = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      window.open(sitio.url, '_blank', 'noopener');
+    }
+  }, 1200);
+  window.addEventListener('pagehide', () => clearTimeout(timer), { once: true });
+  window.location.href = 'spotify:';
+}
+
 export default function WebLinks() {
   const [sitios, setSitios] = useState(getSitios());
   const [nombre, setNombre] = useState('');
@@ -51,7 +73,7 @@ export default function WebLinks() {
         {sitios.map((s, i) => (
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(s.nombre)} title="Quitar">✕</button>
-            <a href={s.url} target="_blank" rel="noreferrer" style={styles.link}>
+            <a href={s.url} target="_blank" rel="noreferrer" style={styles.link} onClick={(e) => manejarClic(e, s)}>
               <img src={faviconUrl(s.url)} alt="" style={styles.logo} />
               <span style={styles.name}>{s.nombre}</span>
             </a>
