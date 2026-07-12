@@ -30,10 +30,10 @@ const HEADERS_YAHOO = {
 };
 
 const CODIGOS_MINDICADOR_VALIDOS = new Set([
-  'uf', 'utm', 'dolar', 'euro', 'libra_cobre', 'tpm', 'tasa_desempleo', 'ipc',
+  'uf', 'utm', 'dolar', 'euro', 'libra_cobre', 'tpm', 'tasa_desempleo', 'ipc', 'ipc_12m',
 ]);
 
-async function historialMindicador(codigo, dias) {
+async function historialMindicadorCrudo(codigo, dias) {
   const anioActual = new Date().getFullYear();
   const aniosNecesarios = Math.max(1, Math.ceil(dias / 365)) + 1;
   const anios = Array.from({ length: aniosNecesarios }, (_, i) => anioActual - i);
@@ -55,16 +55,40 @@ async function historialMindicador(codigo, dias) {
     })
   );
 
-  const serieCompleta = respuestas
+  const serie = respuestas
     .filter(Boolean)
     .flatMap((d) => d.serie || [])
-    .map((p) => ({ fecha: p.fecha, valor: p.valor }));
-
-  const limiteInferior = Date.now() - dias * 24 * 60 * 60 * 1000;
-  const puntos = serieCompleta
-    .filter((p) => new Date(p.fecha).getTime() >= limiteInferior)
+    .map((p) => ({ fecha: p.fecha, valor: p.valor }))
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
+  return { serie, diagnostico };
+}
+
+async function historialMindicador(codigo, dias) {
+  const { serie, diagnostico } = await historialMindicadorCrudo(codigo, dias);
+  const limiteInferior = Date.now() - dias * 24 * 60 * 60 * 1000;
+  const puntos = serie.filter((p) => new Date(p.fecha).getTime() >= limiteInferior);
+  return { puntos, diagnostico };
+}
+
+// IPC acumulado a 12 meses, rodante mes a mes: para cada mes, compone las
+// variaciones mensuales de los 12 meses previos (mismo cálculo que hace
+// market-data.js para el valor "actual", pero repetido en cada punto de la
+// serie para poder graficar cómo fue evolucionando esa cifra en el tiempo).
+async function historialIpc12Meses(dias) {
+  // Se pide bastante más historial mensual del que se va a graficar, porque
+  // cada punto de la serie final necesita 12 meses previos para calcularse.
+  const { serie: serieMensual, diagnostico } = await historialMindicadorCrudo('ipc', dias + 400);
+
+  const puntosAnuales = [];
+  for (let i = 11; i < serieMensual.length; i++) {
+    const ventana = serieMensual.slice(i - 11, i + 1);
+    const factor = ventana.reduce((acc, m) => acc * (1 + (m.valor || 0) / 100), 1);
+    puntosAnuales.push({ fecha: serieMensual[i].fecha, valor: (factor - 1) * 100 });
+  }
+
+  const limiteInferior = Date.now() - dias * 24 * 60 * 60 * 1000;
+  const puntos = puntosAnuales.filter((p) => new Date(p.fecha).getTime() >= limiteInferior);
   return { puntos, diagnostico };
 }
 
@@ -120,7 +144,11 @@ async function historialYahoo(ticker, dias) {
       ticker,
       new URLSearchParams({ period1: String(desdeSeg), period2: String(ahoraSeg), interval: '1d' })
     );
-    return { puntos, diagnostico: puntos.length < 2 && errorIntento1 ? [errorIntento1] : [] };
+    if (puntos.length >= 2) return { puntos, diagnostico: [] };
+    return {
+      puntos: [],
+      diagnostico: ['Yahoo Finance no tiene historial disponible para este ticker (ocurre con algunos índices bursátiles locales).'],
+    };
   } catch (err) {
     return { puntos: [], diagnostico: [errorIntento1, err.message].filter(Boolean) };
   }
@@ -142,7 +170,8 @@ export default async function handler(req, res) {
       if (!CODIGOS_MINDICADOR_VALIDOS.has(codigo)) {
         return res.status(400).json({ error: 'Código de indicador inválido.' });
       }
-      const { puntos, diagnostico } = await historialMindicador(codigo, dias);
+      const { puntos, diagnostico } =
+        codigo === 'ipc_12m' ? await historialIpc12Meses(dias) : await historialMindicador(codigo, dias);
       if (puntos.length < 2) {
         return res.status(200).json({
           puntos: [],
