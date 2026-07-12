@@ -437,6 +437,9 @@ function WeatherDetailModal({ ubicacion, onClose }) {
                 <p style={styles.modalStatValor}>{detalle.viento} km/h {detalle.vientoDireccion}</p>
               </div>
               <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Nubosidad</p>
+                <p style={styles.modalStatValor}>{detalle.nubosidad}%</p>
+              <div style={styles.modalStat}>
                 <p style={styles.modalStatLabel}>Prob. de lluvia</p>
                 <p style={styles.modalStatValor}>{detalle.probLluviaMax}%</p>
               </div>
@@ -549,7 +552,7 @@ export function WeatherPanel() {
                     <span style={styles.weatherTemp}>{u.temp}°</span>
                   </div>
                   <p style={styles.weatherPlace}>{u.nombre}</p>
-                  <p style={styles.weatherDesc}>{u.texto}</p>
+                  <p style={styles.weatherDesc}>{u.texto}{u.nubosidad != null ? ` (${u.nubosidad}% nubes)` : ''}</p>
                   <p style={styles.weatherMinMax}>Mín {u.min}° · Máx {u.max}°</p>
                 </>
               )}
