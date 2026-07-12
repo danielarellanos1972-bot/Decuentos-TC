@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getUbicaciones, saveUbicaciones } from '../utils/weatherLocations.js';
-import { getRelojes, saveRelojes, resolverZonaHoraria } from '../utils/worldClock.js';
+import { getRelojes, saveRelojes, resolverZonaHoraria, getDatosPais } from '../utils/worldClock.js';
 
 const fmtCLP = (n) =>
   n == null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 2 });
@@ -308,7 +308,7 @@ export function MarketPanel() {
                label="IPC 12 meses"
                value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'}
                sub={[fmtPeriodo(data.ipcAnual?.fecha), data.ipcAnual?.respaldo ? '(manual)' : null].filter(Boolean).join(' ')}
-               onClick={() => setHistorialAbierto({ label: 'IPC (valores mensuales)', fuente: 'mindicador', codigo: 'ipc' })}
+               onClick={() => setHistorialAbierto({ label: 'IPC acumulado 12 meses', fuente: 'mindicador', codigo: 'ipc_12m' })}
              />
           <Row
             label="🟠 Cobre (lb)"
@@ -612,11 +612,130 @@ function formatearFecha(tz) {
   }
 }
 
+function useHoraPorSegundo(tz) {
+  const [ahora, setAhora] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const partes = dtf.formatToParts(new Date(ahora)).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+    return {
+      horas: partes.hour === '24' ? 0 : Number(partes.hour),
+      minutos: Number(partes.minute),
+      segundos: Number(partes.second),
+    };
+  } catch {
+    return { horas: 0, minutos: 0, segundos: 0 };
+  }
+}
+
+function AnalogClock({ tz }) {
+  const { horas, minutos, segundos } = useHoraPorSegundo(tz);
+  const anguloSeg = segundos * 6;
+  const anguloMin = minutos * 6 + segundos * 0.1;
+  const anguloHora = (horas % 12) * 30 + minutos * 0.5;
+
+  const centro = 100;
+  const puntoManecilla = (angulo, largo) => {
+    const rad = ((angulo - 90) * Math.PI) / 180;
+    return { x: centro + largo * Math.cos(rad), y: centro + largo * Math.sin(rad) };
+  };
+  const pHora = puntoManecilla(anguloHora, 44);
+  const pMin = puntoManecilla(anguloMin, 65);
+  const pSeg = puntoManecilla(anguloSeg, 72);
+
+  return (
+    <svg viewBox="0 0 200 200" style={styles.relojSvg}>
+      <circle cx={centro} cy={centro} r="90" fill="var(--navy-800)" stroke="var(--navy-700)" strokeWidth="2" />
+      {Array.from({ length: 12 }, (_, i) => {
+        const angulo = i * 30;
+        const externo = puntoManecilla(angulo, 82);
+        const interno = puntoManecilla(angulo, i % 3 === 0 ? 70 : 76);
+        return (
+          <line
+            key={i}
+            x1={externo.x} y1={externo.y} x2={interno.x} y2={interno.y}
+            stroke="var(--paper-100)" strokeWidth={i % 3 === 0 ? 2.5 : 1.2}
+          />
+        );
+      })}
+      {[12, 3, 6, 9].map((num) => {
+        const angulo = num === 12 ? 0 : num * 30;
+        const p = puntoManecilla(angulo, 58);
+        return (
+          <text key={num} x={p.x} y={p.y + 5} textAnchor="middle" style={styles.relojNumero}>
+            {num}
+          </text>
+        );
+      })}
+      <line x1={centro} y1={centro} x2={pHora.x} y2={pHora.y} stroke="var(--paper-050)" strokeWidth="4" strokeLinecap="round" />
+      <line x1={centro} y1={centro} x2={pMin.x} y2={pMin.y} stroke="var(--paper-050)" strokeWidth="2.8" strokeLinecap="round" />
+      <line x1={centro} y1={centro} x2={pSeg.x} y2={pSeg.y} stroke="var(--coral-500)" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx={centro} cy={centro} r="4" fill="var(--gold-300)" />
+    </svg>
+  );
+}
+
+function WorldClockDetailModal({ reloj, onClose }) {
+  if (!reloj) return null;
+  const datos = getDatosPais(reloj.tz);
+  let fechaLocal = '';
+  try {
+    fechaLocal = new Intl.DateTimeFormat('es-CL', {
+      timeZone: reloj.tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }).format(new Date());
+  } catch {
+    fechaLocal = '';
+  }
+
+  return createPortal(
+    <div style={styles.modalFondo} onClick={onClose}>
+      <div style={{ ...styles.modalCaja, maxWidth: '380px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.modalCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
+        <p style={styles.modalLugar}>{reloj.nombre}</p>
+        <AnalogClock tz={reloj.tz} />
+        {fechaLocal && <p style={styles.relojFecha}>{fechaLocal}</p>}
+
+        {datos ? (
+          <div style={styles.modalStatsGrid}>
+            <div style={styles.modalStat}>
+              <p style={styles.modalStatLabel}>País</p>
+              <p style={styles.modalStatValor}>{datos.bandera} {datos.pais}</p>
+            </div>
+            <div style={styles.modalStat}>
+              <p style={styles.modalStatLabel}>Capital</p>
+              <p style={styles.modalStatValor}>{datos.capital}</p>
+            </div>
+            <div style={styles.modalStat}>
+              <p style={styles.modalStatLabel}>Población aprox.</p>
+              <p style={styles.modalStatValor}>{datos.poblacion.toLocaleString('es-CL')}</p>
+            </div>
+            <div style={styles.modalStat}>
+              <p style={styles.modalStatLabel}>Moneda</p>
+              <p style={styles.modalStatValor}>{datos.moneda}</p>
+            </div>
+          </div>
+        ) : (
+          <p style={styles.loadingText}>Sin datos de referencia para esta zona horaria.</p>
+        )}
+
+        <p style={styles.fuente}>Población: estimación reciente, cifra aproximada.</p>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function WorldClockPanel() {
   const [relojes, setRelojes] = useState(getRelojes());
   const [ahora, setAhora] = useState(Date.now());
   const [inputValor, setInputValor] = useState('');
   const [errorAgregar, setErrorAgregar] = useState(null);
+  const [detalleReloj, setDetalleReloj] = useState(null);
 
   useEffect(() => {
     const id = setInterval(() => setAhora(Date.now()), 30000);
@@ -648,14 +767,23 @@ export function WorldClockPanel() {
     <PanelShell title="Hora Mundial">
       <div style={styles.weatherList}>
         {relojes.map((r, i) => (
-          <div key={i} style={styles.weatherRow}>
-            <button style={styles.removeBtnCorner} onClick={() => quitarReloj(r.nombre)} title="Quitar">✕</button>
+          <div key={i} style={{ ...styles.weatherRow, cursor: 'pointer' }} onClick={() => setDetalleReloj(r)}>
+            <button
+              style={styles.removeBtnCorner}
+              onClick={(e) => { e.stopPropagation(); quitarReloj(r.nombre); }}
+              title="Quitar"
+            >
+              ✕
+            </button>
             <span style={styles.clockTemp}>{formatearHora(r.tz)}</span>
             <p style={styles.weatherPlace}>{r.nombre}</p>
             <p style={styles.weatherDesc}>{formatearFecha(r.tz)}</p>
           </div>
         ))}
       </div>
+      {detalleReloj && (
+        <WorldClockDetailModal reloj={detalleReloj} onClose={() => setDetalleReloj(null)} />
+      )}
       <div style={styles.addRow}>
         <input
           style={styles.addInput}
@@ -893,5 +1021,12 @@ const styles = {
   },
   chartRangoFechas: {
     display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', opacity: 0.55, marginBottom: '14px',
+  },
+  relojSvg: { width: '190px', height: '190px', display: 'block', margin: '4px auto 10px' },
+  relojNumero: {
+    fontSize: '13px', fontFamily: 'var(--font-display)', fill: 'var(--paper-050)', fontWeight: 600,
+  },
+  relojFecha: {
+    fontSize: '0.82rem', color: 'var(--paper-050)', opacity: 0.75, textTransform: 'capitalize', margin: '0 0 18px',
   },
 };
