@@ -10,17 +10,46 @@ function faviconUrl(url) {
   }
 }
 
-// IDs reales de App Store y mejor intento de esquema de apertura directa
-// para los bancos que Nano usa (Scotiabank, Banco de Chile, Santander,
-// Itaú). Los bancos chilenos no publican oficialmente estos códigos de
-// apertura directa, así que "scheme" es una apuesta educada: si acierta,
-// abre la app al toque; si no existe, iOS simplemente no hace nada y el
-// código sigue de largo al plan B (la tienda) sin romper nada.
+// IDs reales de App Store para los bancos que Nano usa (Scotiabank, Banco de
+// Chile, Santander, Itaú). Para cualquier otro banco que se agregue, se cae
+// a una búsqueda dentro de la tienda — funciona igual, solo un toque extra.
 const APPS_BANCARIAS = [
-  { match: /scotia/i, iosId: 1309863707, scheme: 'scotiabankmovil://' },
-  { match: /banco\s*de\s*chile|bancochile|edwards/i, iosId: 1516872542, scheme: 'bancochile://' },
-  { match: /santander/i, iosId: 604982236, scheme: 'santander://' },
-  { match: /ita[uú]/i, iosId: 636150714, scheme: 'itau://' },
+  { match: /scotia/i, iosId: 1309863707 },
+  { match: /banco\s*de\s*chile|bancochile|edwards/i, iosId: 1516872542 },
+  { match: /santander/i, iosId: 604982236 },
+  { match: /ita[uú]/i, iosId: 636150714 },
+];
+
+// Entidades que no tienen app para clientes (ej. el Banco Central regula,
+// no es un banco comercial) — siempre van directo a su sitio web, sin
+// intentar buscar una app que no existe.
+const SIN_APP = [/banco\s*central/i];
+
+function obtenerUrlTienda(nombreBanco, esIOS) {
+  const conocida = APPS_BANCARIAS.find((a) => a.match.test(nombreBanco));
+  if (esIOS) {
+    return conocida
+      ? `https://apps.apple.com/cl/app/id${conocida.iosId}`
+      : `https://apps.apple.com/cl/search?term=${encodeURIComponent(nombreBanco)}`;
+  }
+  return `https://play.google.com/store/search?q=${encodeURIComponent(nombreBanco)}&c=apps`;
+}
+
+// En el celular manda directo a la ficha de la tienda (si ya está instalada
+// la app, el botón dice "Abrir"; si no, "Obtener/Instalar"). En PC/Mac, o
+// para entidades sin app (SIN_APP), va directo al sitio web.
+function manejarClicBanco(nombreBanco, urlWeb) {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const esIOS = /iPhone|iPad|iPod/.test(ua);
+  const esAndroid = /Android/.test(ua);
+
+  if (SIN_APP.some((rx) => rx.test(nombreBanco)) || (!esIOS && !esAndroid)) {
+    window.open(urlWeb, '_blank', 'noopener');
+    return;
+  }
+
+  window.location.href = obtenerUrlTienda(nombreBanco, esIOS);
+},
 ];
 
 // Entidades que no tienen app para clientes (ej. el Banco Central regula,
