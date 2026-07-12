@@ -87,7 +87,7 @@ export default function BankLinks() {
 
   return (
     <section style={styles.section}>
-      <h2 style={styles.h2}>Bancos</h2>
+      <h2 style={styles.h2}>Banco y Finanzas</h2>
       <div style={styles.grid}>
         {bancos.map((b, i) => (
           <div key={i} style={styles.card}>
