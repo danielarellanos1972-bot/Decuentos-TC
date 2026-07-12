@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     const params = new URLSearchParams({
       latitude: lat,
       longitude: lon,
-      current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,precipitation,surface_pressure',
+      current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,precipitation,surface_pressure,cloud_cover',
       hourly: 'temperature_2m,weather_code,precipitation_probability',
       daily: 'temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max',
       timezone: 'America/Santiago',
@@ -103,6 +103,7 @@ export default async function handler(req, res) {
       vientoDireccion: direccionViento(data?.current?.wind_direction_10m),
       presion: data?.current?.surface_pressure != null ? Math.round(data.current.surface_pressure) : null,
       precipitacion: data?.current?.precipitation ?? null,
+      nubosidad: data?.current?.cloud_cover != null ? Math.round(data.current.cloud_cover) : null,
       texto: clima.texto,
       icono: clima.icono,
       max: data?.daily?.temperature_2m_max?.[0] != null ? Math.round(data.daily.temperature_2m_max[0]) : null,
