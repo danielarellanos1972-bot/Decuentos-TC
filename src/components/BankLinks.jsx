@@ -92,7 +92,7 @@ export default function BankLinks() {
         {bancos.map((b, i) => (
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(b.nombre)} title="Quitar">✕</button>
-            
+            <a
               href={b.url}
               onClick={(e) => { e.preventDefault(); manejarClicBanco(b.nombre, b.url); }}
               style={styles.link}
