@@ -107,9 +107,16 @@ async function historialBCentral(codigo, dias) {
     }
     const data = await resp.json();
     const obs = data?.Series?.Obs || data?.series?.obs || [];
+    // El Banco Central entrega la fecha como "DD-MM-YYYY" (ej: "02-01-2024"),
+    // hay que convertirla a "YYYY-MM-DD" para que ordene y se muestre bien.
+    const aIso = (raw) => {
+      if (!raw) return null;
+      const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(raw);
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : raw;
+    };
     const puntos = obs
       .map((o) => ({
-        fecha: o.indexDateString || o.date,
+        fecha: aIso(o.indexDateString || o.date),
         valor: parseFloat(o.value ?? o.Value),
       }))
       .filter((p) => p.fecha && Number.isFinite(p.valor));
