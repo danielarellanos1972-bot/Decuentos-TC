@@ -439,6 +439,7 @@ function WeatherDetailModal({ ubicacion, onClose }) {
               <div style={styles.modalStat}>
                 <p style={styles.modalStatLabel}>Nubosidad</p>
                 <p style={styles.modalStatValor}>{detalle.nubosidad}%</p>
+                </div>
               <div style={styles.modalStat}>
                 <p style={styles.modalStatLabel}>Prob. de lluvia</p>
                 <p style={styles.modalStatValor}>{detalle.probLluviaMax}%</p>
