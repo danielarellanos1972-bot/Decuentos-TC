@@ -29,7 +29,7 @@ function manejarClic(e, sitio) {
     }
   }, 1200);
   window.addEventListener('pagehide', () => clearTimeout(timer), { once: true });
-  window.location.href = 'spotify:';
+  window.location.href = 'spotify:preferences';
 }
 
 export default function WebLinks() {
