@@ -64,6 +64,71 @@ async function historialMindicadorCrudo(codigo, dias) {
   return { serie, diagnostico };
 }
 
+// Series del Banco Central de Chile disponibles vía este endpoint (API BDE).
+// Requiere las variables de entorno BCCH_USER / BCCH_PASS (cuenta gratuita
+// registrada en si3.bcentral.cl/siete). A diferencia de mindicador.cl, esta
+// API sí acepta un rango de fechas directo (firstdate/lastdate), sin tener
+// que pedir año por año.
+const CODIGOS_BCENTRAL = {
+  ipsa: 'F013.IBC.IND.N.7.LAC.CL.CLP.BLO.D',
+};
+
+async function historialBCentral(codigo, dias) {
+  const serie = CODIGOS_BCENTRAL[codigo];
+  if (!serie) return { puntos: [], diagnostico: ['Código de serie del Banco Central no configurado.'] };
+
+  const { BCCH_USER, BCCH_PASS } = process.env;
+  if (!BCCH_USER || !BCCH_PASS) {
+    return { puntos: [], diagnostico: ['Faltan las credenciales del Banco Central (BCCH_USER/BCCH_PASS) en Vercel.'] };
+  }
+
+  const hoy = new Date();
+  const desde = new Date(hoy.getTime() - dias * 24 * 60 * 60 * 1000);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+
+  const params = new URLSearchParams({
+    user: BCCH_USER,
+    pass: BCCH_PASS,
+    firstdate: fmt(desde),
+    lastdate: fmt(hoy),
+    timeseries: serie,
+    function: 'GetSeries',
+  });
+
+  try {
+    const resp = await fetchConTimeout(
+      `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?${params.toString()}`,
+      {},
+      9000
+    );
+    if (!resp.ok) {
+      const cuerpo = await resp.text().catch(() => '');
+      return { puntos: [], diagnostico: [`Banco Central respondió HTTP ${resp.status}${cuerpo ? ': ' + cuerpo.slice(0, 200) : ''}`] };
+    }
+    const data = await resp.json();
+    const obs = data?.Series?.Obs || data?.series?.obs || [];
+    const puntos = obs
+      .map((o) => ({
+        fecha: o.indexDateString || o.date,
+        valor: parseFloat(o.value ?? o.Value),
+      }))
+      .filter((p) => p.fecha && Number.isFinite(p.valor));
+
+    if (puntos.length === 0) {
+      return {
+        puntos: [],
+        diagnostico: [
+          'El Banco Central no devolvió puntos con el formato esperado. Respuesta cruda (primeros 300 caracteres): ' +
+            JSON.stringify(data).slice(0, 300),
+        ],
+      };
+    }
+    return { puntos, diagnostico: [] };
+  } catch (err) {
+    return { puntos: [], diagnostico: [err.message || 'Error consultando al Banco Central.'] };
+  }
+}
+
 async function historialMindicador(codigo, dias) {
   const { serie, diagnostico } = await historialMindicadorCrudo(codigo, dias);
   const limiteInferior = Date.now() - dias * 24 * 60 * 60 * 1000;
@@ -181,6 +246,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ puntos });
     }
 
+    if (fuente === 'bcentral') {
+      const codigo = req.query.codigo;
+      if (!CODIGOS_BCENTRAL[codigo]) {
+        return res.status(400).json({ error: 'Código de serie del Banco Central inválido.' });
+      }
+      const { puntos, diagnostico } = await historialBCentral(codigo, dias);
+      if (puntos.length < 2) {
+        return res.status(200).json({
+          puntos: [],
+          aviso: `Sin datos históricos suficientes.${diagnostico.length ? ' Detalle: ' + diagnostico.join(' · ') : ''}`,
+        });
+      }
+      return res.status(200).json({ puntos });
+    }
+
     if (fuente === 'yahoo') {
       const ticker = req.query.ticker;
       if (!ticker) return res.status(400).json({ error: 'Falta el ticker.' });
@@ -194,7 +274,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ puntos });
     }
 
-    return res.status(400).json({ error: 'Parámetro "fuente" inválido (debe ser mindicador o yahoo).' });
+    return res.status(400).json({ error: 'Parámetro "fuente" inválido (debe ser mindicador, bcentral o yahoo).' });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error obteniendo el histórico.' });
   }
