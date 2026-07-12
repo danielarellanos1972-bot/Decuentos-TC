@@ -172,11 +172,126 @@ function useWeatherData(ubicaciones) {
   return { data, error, loading };
 }
 
+function formatearHoraCorta(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch {
+    return '';
+  }
+}
+
+function WeatherDetailModal({ ubicacion, onClose }) {
+  const [detalle, setDetalle] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [errorDetalle, setErrorDetalle] = useState(null);
+
+  useEffect(() => {
+    if (!ubicacion) return;
+    let activo = true;
+    setCargando(true);
+    setErrorDetalle(null);
+    setDetalle(null);
+    fetch(`/api/weather-detail?lat=${ubicacion.lat}&lon=${ubicacion.lon}&nombre=${encodeURIComponent(ubicacion.nombre)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!activo) return;
+        if (d.error) setErrorDetalle(d.error);
+        else setDetalle(d);
+      })
+      .catch(() => activo && setErrorDetalle('No se pudo cargar el detalle.'))
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
+  }, [ubicacion?.nombre, ubicacion?.lat, ubicacion?.lon]);
+
+  if (!ubicacion) return null;
+
+  return (
+    <div style={styles.modalFondo} onClick={onClose}>
+      <div style={styles.modalCaja} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.modalCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
+
+        {cargando && <p style={styles.loadingText}>Cargando detalle de {ubicacion.nombre}…</p>}
+        {errorDetalle && <p style={styles.errorText}>{errorDetalle}</p>}
+
+        {detalle && (
+          <>
+            <p style={styles.modalLugar}>{detalle.nombre}</p>
+            <div style={styles.modalTopRow}>
+              <span style={styles.modalIcono}>{detalle.icono}</span>
+              <span style={styles.modalTemp}>{detalle.temp}°</span>
+              <div>
+                <p style={styles.modalDesc}>{detalle.texto}</p>
+                <p style={styles.modalSub}>Sensación térmica {detalle.sensacion}°</p>
+              </div>
+            </div>
+
+            <div style={styles.modalStatsGrid}>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Mín / Máx</p>
+                <p style={styles.modalStatValor}>{detalle.min}° / {detalle.max}°</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Humedad</p>
+                <p style={styles.modalStatValor}>{detalle.humedad}%</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Viento</p>
+                <p style={styles.modalStatValor}>{detalle.viento} km/h {detalle.vientoDireccion}</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Prob. de lluvia</p>
+                <p style={styles.modalStatValor}>{detalle.probLluviaMax}%</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Índice UV máx.</p>
+                <p style={styles.modalStatValor}>{detalle.uvMax}</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Presión</p>
+                <p style={styles.modalStatValor}>{detalle.presion} hPa</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Amanecer</p>
+                <p style={styles.modalStatValor}>{formatearHoraCorta(detalle.amanecer)}</p>
+              </div>
+              <div style={styles.modalStat}>
+                <p style={styles.modalStatLabel}>Atardecer</p>
+                <p style={styles.modalStatValor}>{formatearHoraCorta(detalle.atardecer)}</p>
+              </div>
+            </div>
+
+            {detalle.proximasHoras?.length > 0 && (
+              <>
+                <p style={styles.modalHorasTitulo}>Próximas horas</p>
+                <div style={styles.modalHorasFila}>
+                  {detalle.proximasHoras.map((h, i) => (
+                    <div key={i} style={styles.modalHoraItem}>
+                      <p style={styles.modalHoraTexto}>{formatearHoraCorta(h.hora)}</p>
+                      <p style={styles.modalHoraIcono}>{h.icono}</p>
+                      <p style={styles.modalHoraTemp}>{h.temp}°</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <p style={styles.fuente}>Fuente: Open-Meteo.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function WeatherPanel() {
   const [ubicaciones, setUbicaciones] = useState(getUbicaciones());
   const [inputValor, setInputValor] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [errorAgregar, setErrorAgregar] = useState(null);
+  const [detalleAbierto, setDetalleAbierto] = useState(null);
   const { data, error, loading } = useWeatherData(ubicaciones);
 
   const agregarUbicacion = async () => {
@@ -213,8 +328,18 @@ export function WeatherPanel() {
       {data?.ubicaciones && (
         <div style={styles.weatherList}>
           {data.ubicaciones.map((u, i) => (
-            <div key={i} style={styles.weatherRow}>
-              <button style={styles.removeBtnCorner} onClick={() => quitarUbicacion(u.nombre)} title="Quitar">✕</button>
+            <div
+              key={i}
+              style={{ ...styles.weatherRow, cursor: u.error ? 'default' : 'pointer' }}
+              onClick={() => !u.error && ubicaciones[i] && setDetalleAbierto(ubicaciones[i])}
+            >
+              <button
+                style={styles.removeBtnCorner}
+                onClick={(e) => { e.stopPropagation(); quitarUbicacion(u.nombre); }}
+                title="Quitar"
+              >
+                ✕
+              </button>
               {u.error ? (
                 <>
                   <span style={styles.weatherIcon}>—</span>
@@ -235,6 +360,9 @@ export function WeatherPanel() {
             </div>
           ))}
         </div>
+      )}
+      {detalleAbierto && (
+        <WeatherDetailModal ubicacion={detalleAbierto} onClose={() => setDetalleAbierto(null)} />
       )}
       <div style={styles.addRow}>
         <input
@@ -514,4 +642,45 @@ const styles = {
     fontSize: '0.9rem',
     cursor: 'pointer',
   },
+  modalFondo: {
+    position: 'fixed', inset: 0, background: 'rgba(5,10,15,0.72)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 1000, padding: '20px',
+  },
+  modalCaja: {
+    position: 'relative', background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
+    borderRadius: '18px', padding: '26px', width: '100%', maxWidth: '440px',
+    maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+  },
+  modalCerrar: {
+    position: 'absolute', top: '14px', right: '14px', background: 'var(--navy-800)',
+    border: '1px solid var(--navy-700)', color: 'var(--paper-100)', borderRadius: '50%',
+    width: '28px', height: '28px', fontSize: '0.85rem', cursor: 'pointer',
+  },
+  modalLugar: {
+    fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--paper-050)',
+    margin: '0 0 12px', paddingRight: '30px',
+  },
+  modalTopRow: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' },
+  modalIcono: { fontSize: '3rem', lineHeight: 1 },
+  modalTemp: { fontFamily: 'var(--font-mono)', fontSize: '2.6rem', fontWeight: 700, color: 'var(--gold-300)' },
+  modalDesc: { fontSize: '0.95rem', color: 'var(--paper-050)', margin: '0 0 2px', fontWeight: 600 },
+  modalSub: { fontSize: '0.78rem', opacity: 0.65, margin: 0 },
+  modalStatsGrid: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px',
+  },
+  modalStat: {
+    background: 'var(--navy-800)', borderRadius: '10px', padding: '10px 12px',
+  },
+  modalStatLabel: { fontSize: '0.66rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 2px' },
+  modalStatValor: { fontSize: '0.92rem', fontWeight: 700, color: 'var(--paper-050)', margin: 0 },
+  modalHorasTitulo: { fontSize: '0.8rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 10px' },
+  modalHorasFila: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '6px' },
+  modalHoraItem: {
+    flexShrink: 0, background: 'var(--navy-800)', borderRadius: '10px',
+    padding: '10px 8px', textAlign: 'center', minWidth: '54px',
+  },
+  modalHoraTexto: { fontSize: '0.62rem', opacity: 0.6, margin: '0 0 4px' },
+  modalHoraIcono: { fontSize: '1.2rem', margin: '0 0 4px' },
+  modalHoraTemp: { fontSize: '0.8rem', fontWeight: 700, color: 'var(--paper-050)', margin: 0 },
 };
