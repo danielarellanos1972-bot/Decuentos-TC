@@ -11,7 +11,11 @@
 //   y se combinan.
 // - "yahoo": índices/commodities internacionales (IPSA, S&P 500, Stoxx 50,
 //   IBEX 35, Nikkei 225, petróleo WTI, oro), vía el endpoint público de
-//   gráficos de Yahoo Finance (mismo que ya usa market-data.js).
+//   gráficos de Yahoo Finance. Se usa el parámetro "range" (el mismo que
+//   usa la web de Yahoo Finance) en vez de period1/period2 personalizados,
+//   porque Yahoo suele devolver series vacías o truncadas para rangos
+//   personalizados desde IPs de centros de datos (como las de Vercel),
+//   mientras que los rangos con nombre (1y, 5y, etc.) son más confiables.
 
 const fetchConTimeout = (url, options, timeoutMs) => {
   const controller = new AbortController();
@@ -20,6 +24,10 @@ const fetchConTimeout = (url, options, timeoutMs) => {
 };
 
 const HEADERS_MINDICADOR = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)' };
+const HEADERS_YAHOO = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  Accept: 'application/json',
+};
 
 const CODIGOS_MINDICADOR_VALIDOS = new Set([
   'uf', 'utm', 'dolar', 'euro', 'libra_cobre', 'tpm', 'tasa_desempleo', 'ipc',
@@ -30,12 +38,21 @@ async function historialMindicador(codigo, dias) {
   const aniosNecesarios = Math.max(1, Math.ceil(dias / 365)) + 1;
   const anios = Array.from({ length: aniosNecesarios }, (_, i) => anioActual - i);
 
+  const diagnostico = [];
   const respuestas = await Promise.all(
-    anios.map((anio) =>
-      fetchConTimeout(`https://mindicador.cl/api/${codigo}/${anio}`, { headers: HEADERS_MINDICADOR }, 6000)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null)
-    )
+    anios.map(async (anio) => {
+      try {
+        const r = await fetchConTimeout(`https://mindicador.cl/api/${codigo}/${anio}`, { headers: HEADERS_MINDICADOR }, 8000);
+        if (!r.ok) {
+          diagnostico.push(`${anio}: HTTP ${r.status}`);
+          return null;
+        }
+        return await r.json();
+      } catch (err) {
+        diagnostico.push(`${anio}: ${err.name === 'AbortError' ? 'tiempo de espera agotado' : err.message}`);
+        return null;
+      }
+    })
   );
 
   const serieCompleta = respuestas
@@ -48,28 +65,34 @@ async function historialMindicador(codigo, dias) {
     .filter((p) => new Date(p.fecha).getTime() >= limiteInferior)
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-  return puntos;
+  return { puntos, diagnostico };
 }
 
-async function historialYahoo(ticker, dias) {
-  const ahoraSeg = Math.floor(Date.now() / 1000);
-  const desdeSeg = ahoraSeg - dias * 24 * 60 * 60;
+// Convierte la cantidad de días pedida al parámetro "range" con nombre que
+// usa Yahoo Finance (más confiable que un rango con fechas personalizadas).
+function rangoYahoo(dias) {
+  if (dias <= 7) return '5d';
+  if (dias <= 30) return '1mo';
+  if (dias <= 90) return '3mo';
+  if (dias <= 365) return '1y';
+  return '5y';
+}
 
-  const params = new URLSearchParams({
-    period1: String(desdeSeg),
-    period2: String(ahoraSeg),
-    interval: '1d',
-  });
-
+async function pedirYahoo(ticker, queryParams) {
   const resp = await fetchConTimeout(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?${params.toString()}`,
-    { headers: { 'User-Agent': 'Mozilla/5.0' } },
-    7000
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?${queryParams.toString()}`,
+    { headers: HEADERS_YAHOO },
+    8000
   );
-  if (!resp.ok) throw new Error(`Yahoo Finance respondió con error (${resp.status}).`);
+  if (!resp.ok) {
+    const cuerpo = await resp.text().catch(() => '');
+    throw new Error(`Yahoo Finance respondió HTTP ${resp.status}${cuerpo ? `: ${cuerpo.slice(0, 200)}` : ''}`);
+  }
   const data = await resp.json();
+  const error = data?.chart?.error;
+  if (error) throw new Error(`Yahoo Finance: ${error.description || error.code}`);
   const result = data?.chart?.result?.[0];
-  if (!result) throw new Error('Sin datos históricos para ese ticker.');
+  if (!result) throw new Error('Yahoo Finance no devolvió resultados para ese ticker.');
 
   const timestamps = result.timestamp || [];
   const cierres = result.indicators?.quote?.[0]?.close || [];
@@ -77,6 +100,30 @@ async function historialYahoo(ticker, dias) {
   return timestamps
     .map((t, i) => ({ fecha: new Date(t * 1000).toISOString().slice(0, 10), valor: cierres[i] }))
     .filter((p) => p.valor != null);
+}
+
+async function historialYahoo(ticker, dias) {
+  // Intento 1: rango con nombre (1y, 5y, etc.) — el más confiable.
+  let errorIntento1 = null;
+  try {
+    const puntos = await pedirYahoo(ticker, new URLSearchParams({ range: rangoYahoo(dias), interval: '1d' }));
+    if (puntos.length >= 2) return { puntos, diagnostico: [] };
+  } catch (err) {
+    errorIntento1 = err.message;
+  }
+
+  // Intento 2 (respaldo): fechas personalizadas con period1/period2.
+  try {
+    const ahoraSeg = Math.floor(Date.now() / 1000);
+    const desdeSeg = ahoraSeg - dias * 24 * 60 * 60;
+    const puntos = await pedirYahoo(
+      ticker,
+      new URLSearchParams({ period1: String(desdeSeg), period2: String(ahoraSeg), interval: '1d' })
+    );
+    return { puntos, diagnostico: puntos.length < 2 && errorIntento1 ? [errorIntento1] : [] };
+  } catch (err) {
+    return { puntos: [], diagnostico: [errorIntento1, err.message].filter(Boolean) };
+  }
 }
 
 export default async function handler(req, res) {
@@ -95,16 +142,26 @@ export default async function handler(req, res) {
       if (!CODIGOS_MINDICADOR_VALIDOS.has(codigo)) {
         return res.status(400).json({ error: 'Código de indicador inválido.' });
       }
-      const puntos = await historialMindicador(codigo, dias);
-      if (puntos.length === 0) return res.status(200).json({ puntos: [], aviso: 'Sin datos históricos disponibles.' });
+      const { puntos, diagnostico } = await historialMindicador(codigo, dias);
+      if (puntos.length < 2) {
+        return res.status(200).json({
+          puntos: [],
+          aviso: `Sin datos históricos suficientes.${diagnostico.length ? ' Detalle: ' + diagnostico.join(' · ') : ''}`,
+        });
+      }
       return res.status(200).json({ puntos });
     }
 
     if (fuente === 'yahoo') {
       const ticker = req.query.ticker;
       if (!ticker) return res.status(400).json({ error: 'Falta el ticker.' });
-      const puntos = await historialYahoo(ticker, dias);
-      if (puntos.length === 0) return res.status(200).json({ puntos: [], aviso: 'Sin datos históricos disponibles.' });
+      const { puntos, diagnostico } = await historialYahoo(ticker, dias);
+      if (puntos.length < 2) {
+        return res.status(200).json({
+          puntos: [],
+          aviso: `Sin datos históricos suficientes.${diagnostico.length ? ' Detalle: ' + diagnostico.join(' · ') : ''}`,
+        });
+      }
       return res.status(200).json({ puntos });
     }
 
