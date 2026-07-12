@@ -82,7 +82,7 @@ function LineChart({ puntos }) {
   const ancho = 640;
   const alto = 220;
   const padX = 10;
-  const padY = 16;
+  const padY = 30;
 
   if (!puntos || puntos.length < 2) {
     return <p style={styles.loadingText}>No hay suficientes datos para graficar.</p>;
@@ -102,10 +102,37 @@ function LineChart({ puntos }) {
   const subio = puntos[puntos.length - 1].valor >= puntos[0].valor;
   const color = subio ? 'var(--mint-300)' : 'var(--coral-500)';
 
+  const idxMax = valores.indexOf(max);
+  const idxMin = valores.indexOf(min);
+  const anclaje = (idx) => (x(idx) < ancho * 0.18 ? 'start' : x(idx) > ancho * 0.82 ? 'end' : 'middle');
+  const fechaCorta = (f) => {
+    try {
+      return new Date(f).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <svg viewBox={`0 0 ${ancho} ${alto}`} style={styles.chartSvg} preserveAspectRatio="none">
       <path d={areaD} fill={color} opacity="0.12" stroke="none" />
       <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* Pico (valor más alto del período) */}
+      <circle cx={x(idxMax)} cy={y(max)} r="3.5" fill={color} stroke="var(--navy-900)" strokeWidth="1.5" />
+      <text x={x(idxMax)} y={Math.max(y(max) - 9, 10)} textAnchor={anclaje(idxMax)} style={styles.chartLabel}>
+        {fmtCLP(max)} · {fechaCorta(puntos[idxMax].fecha)}
+      </text>
+
+      {/* Valle (valor más bajo del período), si es distinto del pico */}
+      {idxMin !== idxMax && (
+        <>
+          <circle cx={x(idxMin)} cy={y(min)} r="3.5" fill={color} stroke="var(--navy-900)" strokeWidth="1.5" />
+          <text x={x(idxMin)} y={Math.min(y(min) + 17, alto - 4)} textAnchor={anclaje(idxMin)} style={styles.chartLabel}>
+            {fmtCLP(min)} · {fechaCorta(puntos[idxMin].fecha)}
+          </text>
+        </>
+      )}
     </svg>
   );
 }
@@ -130,6 +157,7 @@ function IndicatorHistoryModal({ indicador, onClose }) {
       .then((d) => {
         if (!activo) return;
         if (d.error) setErrorHist(d.error);
+        else if ((!d.puntos || d.puntos.length === 0) && d.aviso) setErrorHist(d.aviso);
         else setPuntos(d.puntos || []);
       })
       .catch(() => activo && setErrorHist('No se pudo cargar el histórico.'))
@@ -860,6 +888,9 @@ const styles = {
     background: 'var(--gold-500)', borderColor: 'var(--gold-500)', color: 'var(--navy-950)',
   },
   chartSvg: { width: '100%', height: '180px', display: 'block', marginBottom: '8px' },
+  chartLabel: {
+    fontSize: '9.5px', fontFamily: 'var(--font-mono)', fontWeight: 700, fill: 'var(--paper-050)',
+  },
   chartRangoFechas: {
     display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', opacity: 0.55, marginBottom: '14px',
   },
