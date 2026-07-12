@@ -58,9 +58,9 @@ function PanelShell({ title, children }) {
   );
 }
 
-function Row({ label, value, sub }) {
+function Row({ label, value, sub, onClick }) {
   return (
-    <div style={styles.row}>
+    <div style={{ ...styles.row, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
       <span style={styles.rowLabel}>{label}</span>
       <div style={styles.rowValueWrap}>
         <span style={styles.rowValue}>{value}</span>
@@ -70,8 +70,137 @@ function Row({ label, value, sub }) {
   );
 }
 
+const PERIODOS = [
+  { dias: 7, etiqueta: '7D' },
+  { dias: 30, etiqueta: '30D' },
+  { dias: 90, etiqueta: '90D' },
+  { dias: 365, etiqueta: '1A' },
+  { dias: 1825, etiqueta: '5A' },
+];
+
+function LineChart({ puntos }) {
+  const ancho = 640;
+  const alto = 220;
+  const padX = 10;
+  const padY = 16;
+
+  if (!puntos || puntos.length < 2) {
+    return <p style={styles.loadingText}>No hay suficientes datos para graficar.</p>;
+  }
+
+  const valores = puntos.map((p) => p.valor);
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+  const rango = max - min || 1;
+
+  const x = (i) => padX + (i / (puntos.length - 1)) * (ancho - padX * 2);
+  const y = (v) => padY + (1 - (v - min) / rango) * (alto - padY * 2);
+
+  const pathD = puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.valor).toFixed(1)}`).join(' ');
+  const areaD = `${pathD} L ${x(puntos.length - 1).toFixed(1)} ${alto - padY} L ${x(0).toFixed(1)} ${alto - padY} Z`;
+
+  const subio = puntos[puntos.length - 1].valor >= puntos[0].valor;
+  const color = subio ? 'var(--mint-300)' : 'var(--coral-500)';
+
+  return (
+    <svg viewBox={`0 0 ${ancho} ${alto}`} style={styles.chartSvg} preserveAspectRatio="none">
+      <path d={areaD} fill={color} opacity="0.12" stroke="none" />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IndicatorHistoryModal({ indicador, onClose }) {
+  const [periodo, setPeriodo] = useState(365);
+  const [puntos, setPuntos] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [errorHist, setErrorHist] = useState(null);
+
+  useEffect(() => {
+    if (!indicador) return;
+    let activo = true;
+    setCargando(true);
+    setErrorHist(null);
+    const params = new URLSearchParams({ fuente: indicador.fuente, dias: String(periodo) });
+    if (indicador.fuente === 'mindicador') params.set('codigo', indicador.codigo);
+    if (indicador.fuente === 'yahoo') params.set('ticker', indicador.ticker);
+
+    fetch(`/api/market-history?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!activo) return;
+        if (d.error) setErrorHist(d.error);
+        else setPuntos(d.puntos || []);
+      })
+      .catch(() => activo && setErrorHist('No se pudo cargar el histórico.'))
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
+  }, [indicador?.fuente, indicador?.codigo, indicador?.ticker, periodo]);
+
+  if (!indicador) return null;
+
+  const primero = puntos?.[0];
+  const ultimo = puntos?.[puntos.length - 1];
+  const variacionPeriodo =
+    primero && ultimo && primero.valor ? ((ultimo.valor - primero.valor) / primero.valor) * 100 : null;
+
+  return createPortal(
+    <div style={styles.modalFondo} onClick={onClose}>
+      <div style={{ ...styles.modalCaja, maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.modalCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
+        <p style={styles.modalLugar}>{indicador.label}</p>
+
+        <div style={styles.periodosFila}>
+          {PERIODOS.map((p) => (
+            <button
+              key={p.dias}
+              style={{ ...styles.periodoBtn, ...(periodo === p.dias ? styles.periodoBtnActivo : {}) }}
+              onClick={() => setPeriodo(p.dias)}
+            >
+              {p.etiqueta}
+            </button>
+          ))}
+        </div>
+
+        {cargando && <p style={styles.loadingText}>Cargando histórico…</p>}
+        {errorHist && <p style={styles.errorText}>{errorHist}</p>}
+
+        {!cargando && !errorHist && puntos && (
+          <>
+            {ultimo && (
+              <div style={styles.modalTopRow}>
+                <span style={styles.modalTemp}>{fmtCLP(ultimo.valor)}</span>
+                {variacionPeriodo != null && (
+                  <span style={{ ...styles.modalSub, color: variacionPeriodo >= 0 ? 'var(--mint-300)' : 'var(--coral-500)' }}>
+                    {fmtPct(variacionPeriodo)} en el período
+                  </span>
+                )}
+              </div>
+            )}
+            <LineChart puntos={puntos} />
+            {primero && ultimo && (
+              <div style={styles.chartRangoFechas}>
+                <span>{fmtPeriodo(primero.fecha) || primero.fecha}</span>
+                <span>{fmtPeriodo(ultimo.fecha) || ultimo.fecha}</span>
+              </div>
+            )}
+          </>
+        )}
+
+        <p style={styles.fuente}>
+          Fuente: {indicador.fuente === 'mindicador' ? 'mindicador.cl (Banco Central de Chile / INE)' : 'Yahoo Finance'}.
+        </p>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function DateFXPanel() {
   const { data, error, loading } = useMarketData();
+  const [historialAbierto, setHistorialAbierto] = useState(null);
 
   return (
     <PanelShell title="Hoy">
@@ -82,20 +211,44 @@ export function DateFXPanel() {
       {data?.avisoBase && <p style={styles.errorText}>{data.avisoBase}</p>}
       {data && (
         <>
-          <Row label="🇨🇱 UF" value={`$${fmtCLP(data.uf?.valor)}`} />
-          <Row label="🇨🇱 UTM" value={`$${fmtCLP(data.utm?.valor)}`} />
-          <Row label="🇺🇸 Dólar (USD)" value={`$${fmtCLP(data.usd?.valor)}`} />
-          <Row label="🇪🇺 Euro" value={data.eur?.valor ? `$${fmtCLP(data.eur.valor)}` : 'No disponible'} />
+          <Row
+            label="🇨🇱 UF"
+            value={`$${fmtCLP(data.uf?.valor)}`}
+            onClick={() => setHistorialAbierto({ label: 'UF', fuente: 'mindicador', codigo: 'uf' })}
+          />
+          <Row
+            label="🇨🇱 UTM"
+            value={`$${fmtCLP(data.utm?.valor)}`}
+            onClick={() => setHistorialAbierto({ label: 'UTM', fuente: 'mindicador', codigo: 'utm' })}
+          />
+          <Row
+            label="🇺🇸 Dólar (USD)"
+            value={`$${fmtCLP(data.usd?.valor)}`}
+            onClick={() => setHistorialAbierto({ label: 'Dólar (USD)', fuente: 'mindicador', codigo: 'dolar' })}
+          />
+          <Row
+            label="🇪🇺 Euro"
+            value={data.eur?.valor ? `$${fmtCLP(data.eur.valor)}` : 'No disponible'}
+            onClick={() => setHistorialAbierto({ label: 'Euro', fuente: 'mindicador', codigo: 'euro' })}
+          />
           <Row label="🇨🇦 Dólar Can. (CAD)" value={data.cad?.valor ? `$${fmtCLP(data.cad.valor)}` : 'No disponible'} />
         </>
       )}
-      <p style={styles.fuente}>UF/UTM/USD: Banco Central de Chile (vía mindicador.cl) · CAD: cotización de mercado cruzada (referencia comparable a wise.com)</p>
+      {historialAbierto && (
+        <IndicatorHistoryModal indicador={historialAbierto} onClose={() => setHistorialAbierto(null)} />
+      )}
+      <p style={styles.fuente}>UF/UTM/USD: Banco Central de Chile (vía mindicador.cl) · CAD: cotización de mercado cruzada (referencia comparable a wise.com) · Toca un valor para ver su evolución.</p>
     </PanelShell>
   );
 }
 
+// Tickers de Yahoo Finance en el mismo orden que "indices" en la respuesta
+// de /api/market-data (ipsa, sp500, europa, ibex, asia, petroleo, oro).
+const TICKERS_INDICES = ['^IPSA', '^GSPC', '^STOXX50E', '^IBEX', '^N225', 'CL=F', 'GC=F'];
+
 export function MarketPanel() {
   const { data, error, loading } = useMarketData();
+  const [historialAbierto, setHistorialAbierto] = useState(null);
 
   return (
     <PanelShell title="Mercado">
@@ -110,36 +263,49 @@ export function MarketPanel() {
               label={idx.label}
               value={idx.valor != null ? fmtCLP(idx.valor) : 'No disponible'}
               sub={idx.variacion != null ? fmtPct(idx.variacion) : null}
+              onClick={
+                idx.valor != null
+                  ? () => setHistorialAbierto({ label: idx.label, fuente: 'yahoo', ticker: TICKERS_INDICES[i] })
+                  : undefined
+              }
             />
           ))}
           <Row
                label="IPC mensual"
                value={data.ipcMensual?.valor != null ? fmtPct(data.ipcMensual.valor) : '—'}
                sub={[fmtPeriodo(data.ipcMensual?.fecha), data.ipcMensual?.respaldo ? '(manual)' : null].filter(Boolean).join(' ')}
+               onClick={() => setHistorialAbierto({ label: 'IPC mensual', fuente: 'mindicador', codigo: 'ipc' })}
              />
              <Row
                label="IPC 12 meses"
                value={data.ipcAnual?.valor != null ? fmtPct(data.ipcAnual.valor) : '—'}
                sub={[fmtPeriodo(data.ipcAnual?.fecha), data.ipcAnual?.respaldo ? '(manual)' : null].filter(Boolean).join(' ')}
+               onClick={() => setHistorialAbierto({ label: 'IPC (valores mensuales)', fuente: 'mindicador', codigo: 'ipc' })}
              />
           <Row
             label="🟠 Cobre (lb)"
             value={data.cobre?.valor != null ? `$${fmtCLP(data.cobre.valor)}` : '—'}
             sub={fmtPeriodo(data.cobre?.fecha)}
+            onClick={() => setHistorialAbierto({ label: 'Cobre (lb)', fuente: 'mindicador', codigo: 'libra_cobre' })}
           />
           <Row
             label="TPM"
             value={data.tpm?.valor != null ? `${fmtCLP(data.tpm.valor)}%` : '—'}
             sub={fmtPeriodo(data.tpm?.fecha)}
+            onClick={() => setHistorialAbierto({ label: 'TPM', fuente: 'mindicador', codigo: 'tpm' })}
           />
           <Row
             label="Desempleo"
             value={data.desempleo?.valor != null ? `${fmtCLP(data.desempleo.valor)}%` : '—'}
             sub={fmtPeriodo(data.desempleo?.fecha)}
+            onClick={() => setHistorialAbierto({ label: 'Desempleo', fuente: 'mindicador', codigo: 'tasa_desempleo' })}
           />
         </>
       )}
-      <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC, cobre, TPM y desempleo: INE / Banco Central de Chile</p>
+      {historialAbierto && (
+        <IndicatorHistoryModal indicador={historialAbierto} onClose={() => setHistorialAbierto(null)} />
+      )}
+      <p style={styles.fuente}>Índices: Bolsa de Santiago / mercados internacionales · IPC, cobre, TPM y desempleo: INE / Banco Central de Chile · Toca un valor para ver su evolución.</p>
     </PanelShell>
   );
 }
@@ -685,4 +851,16 @@ const styles = {
   modalHoraTexto: { fontSize: '0.62rem', opacity: 0.6, margin: '0 0 4px' },
   modalHoraIcono: { fontSize: '1.2rem', margin: '0 0 4px' },
   modalHoraTemp: { fontSize: '0.8rem', fontWeight: 700, color: 'var(--paper-050)', margin: 0 },
+  periodosFila: { display: 'flex', gap: '6px', marginBottom: '18px' },
+  periodoBtn: {
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    borderRadius: '8px', padding: '5px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+  },
+  periodoBtnActivo: {
+    background: 'var(--gold-500)', borderColor: 'var(--gold-500)', color: 'var(--navy-950)',
+  },
+  chartSvg: { width: '100%', height: '180px', display: 'block', marginBottom: '8px' },
+  chartRangoFechas: {
+    display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', opacity: 0.55, marginBottom: '14px',
+  },
 };
