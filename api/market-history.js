@@ -71,6 +71,7 @@ async function historialMindicadorCrudo(codigo, dias) {
 // que pedir año por año.
 const CODIGOS_BCENTRAL = {
   ipsa: 'F013.IBC.IND.N.7.LAC.CL.CLP.BLO.D',
+  imacec: 'F032.IMC.IND.Z.Z.EP18.Z.Z.0.M',
 };
 
 async function historialBCentral(codigo, dias) {
