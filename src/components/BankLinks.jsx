@@ -49,58 +49,6 @@ function manejarClicBanco(nombreBanco, urlWeb) {
   }
 
   window.location.href = obtenerUrlTienda(nombreBanco, esIOS);
-},
-];
-
-// Entidades que no tienen app para clientes (ej. el Banco Central regula,
-// no es un banco comercial) — siempre van directo a su sitio web, sin
-// intentar buscar una app que no existe.
-const SIN_APP = [/banco\s*central/i];
-
-function obtenerUrlTienda(nombreBanco, esIOS) {
-  const conocida = APPS_BANCARIAS.find((a) => a.match.test(nombreBanco));
-  if (esIOS) {
-    return conocida
-      ? `https://apps.apple.com/cl/app/id${conocida.iosId}`
-      : `https://apps.apple.com/cl/search?term=${encodeURIComponent(nombreBanco)}`;
-  }
-  return `https://play.google.com/store/search?q=${encodeURIComponent(nombreBanco)}&c=apps`;
-}
-
-// En el celular intenta abrir la app directo (si tenemos una apuesta de
-// esquema para ese banco); si no se abre nada en ~1.2s (o de plano no
-// tenemos esquema para ese banco), cae a la ficha de la tienda como plan B.
-// En PC/Mac, o para entidades sin app (SIN_APP), va directo al sitio web.
-function manejarClicBanco(nombreBanco, urlWeb) {
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  const esIOS = /iPhone|iPad|iPod/.test(ua);
-  const esAndroid = /Android/.test(ua);
-
-  if (SIN_APP.some((rx) => rx.test(nombreBanco))) {
-    window.open(urlWeb, '_blank', 'noopener');
-    return;
-  }
-
-  if (!esIOS && !esAndroid) {
-    window.open(urlWeb, '_blank', 'noopener');
-    return;
-  }
-
-  const conocida = APPS_BANCARIAS.find((a) => a.match.test(nombreBanco));
-  const urlTienda = obtenerUrlTienda(nombreBanco, esIOS);
-
-  if (esIOS && conocida?.scheme) {
-    const timer = setTimeout(() => {
-      if (document.visibilityState === 'visible') {
-        window.location.href = urlTienda;
-      }
-    }, 1200);
-    window.addEventListener('pagehide', () => clearTimeout(timer), { once: true });
-    window.location.href = conocida.scheme;
-    return;
-  }
-
-  window.location.href = urlTienda;
 }
 
 export default function BankLinks() {
@@ -144,7 +92,7 @@ export default function BankLinks() {
         {bancos.map((b, i) => (
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(b.nombre)} title="Quitar">✕</button>
-            <a
+            
               href={b.url}
               onClick={(e) => { e.preventDefault(); manejarClicBanco(b.nombre, b.url); }}
               style={styles.link}
