@@ -10,6 +10,7 @@ import WebLinks from './components/WebLinks.jsx';
 import Calendar from './components/Calendar.jsx';
 import EmailPanel from './components/EmailPanel.jsx';
 import Calculator from './components/Calculator.jsx';
+import NowPlayingBar from './components/NowPlayingBar.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
