@@ -15,52 +15,102 @@ function formatearTiempo(ms) {
 export default function NowPlayingBar() {
   const [datos, setDatos] = useState(null);
   const [movil] = useState(esMovil());
+  const [enviando, setEnviando] = useState(false);
+  const [errorControl, setErrorControl] = useState(null);
+
+  const consultar = () => {
+    fetch('/api/spotify-now-playing')
+      .then((r) => r.json())
+      .then((d) => setDatos(d))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (movil) return; // no se consulta nada en el celular
 
     let activo = true;
-    const consultar = () => {
+    const consultarSiActivo = () => {
       fetch('/api/spotify-now-playing')
         .then((r) => r.json())
         .then((d) => activo && setDatos(d))
         .catch(() => {});
     };
 
-    consultar();
-    const id = setInterval(consultar, 8000);
+    consultarSiActivo();
+    const id = setInterval(consultarSiActivo, 8000);
     return () => {
       activo = false;
       clearInterval(id);
     };
   }, [movil]);
 
+  const controlar = async (accion) => {
+    setEnviando(true);
+    setErrorControl(null);
+    try {
+      const resp = await fetch('/api/spotify-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion }),
+      });
+      const d = await resp.json();
+      if (!d.ok) {
+        setErrorControl(d.error || 'No se pudo enviar el comando.');
+      } else if (accion === 'play' || accion === 'pause') {
+        // Actualización optimista mientras llega el próximo sondeo
+        setDatos((prev) => (prev ? { ...prev, reproduciendo: accion === 'play' } : prev));
+      }
+      // Da un pequeño margen para que Spotify procese el cambio antes de refrescar
+      setTimeout(consultar, 700);
+    } catch {
+      setErrorControl('No se pudo conectar con Spotify.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   if (movil) return null;
-  if (!datos || !datos.reproduciendo || !datos.cancion) return null;
+  if (!datos || (!datos.reproduciendo && !datos.cancion)) return null;
+  if (!datos.cancion) return null;
 
   const progresoPct = datos.duracionMs ? Math.min(100, (datos.progresoMs / datos.duracionMs) * 100) : 0;
 
   return (
     <div style={styles.barra}>
-      <a
-        href={datos.urlSpotify || 'https://open.spotify.com'}
-        target="_blank"
-        rel="noreferrer"
-        style={styles.contenido}
-      >
-        {datos.portada && <img src={datos.portada} alt="" style={styles.portada} />}
-        <div style={styles.textoWrap}>
-          <p style={styles.cancion}>{datos.cancion}</p>
-          <p style={styles.artista}>{datos.artistas}{datos.album ? ` · ${datos.album}` : ''}</p>
-          <div style={styles.progresoFondo}>
-            <div style={{ ...styles.progresoBarra, width: `${progresoPct}%` }} />
+      <div style={styles.contenido}>
+        <a href={datos.urlSpotify || 'https://open.spotify.com'} target="_blank" rel="noreferrer" style={styles.linkInfo}>
+          {datos.portada && <img src={datos.portada} alt="" style={styles.portada} />}
+          <div style={styles.textoWrap}>
+            <p style={styles.cancion}>{datos.cancion}</p>
+            <p style={styles.artista}>{datos.artistas}{datos.album ? ` · ${datos.album}` : ''}</p>
+            <div style={styles.progresoFondo}>
+              <div style={{ ...styles.progresoBarra, width: `${progresoPct}%` }} />
+            </div>
           </div>
+        </a>
+
+        <div style={styles.controles}>
+          <button style={styles.botonControl} onClick={() => controlar('previous')} disabled={enviando} title="Anterior">
+            ⏮
+          </button>
+          <button
+            style={{ ...styles.botonControl, ...styles.botonPrincipal }}
+            onClick={() => controlar(datos.reproduciendo ? 'pause' : 'play')}
+            disabled={enviando}
+            title={datos.reproduciendo ? 'Pausar' : 'Reproducir'}
+          >
+            {datos.reproduciendo ? '⏸' : '▶'}
+          </button>
+          <button style={styles.botonControl} onClick={() => controlar('next')} disabled={enviando} title="Siguiente">
+            ⏭
+          </button>
         </div>
+
         <span style={styles.tiempo}>
           {formatearTiempo(datos.progresoMs)} / {formatearTiempo(datos.duracionMs)}
         </span>
-        <span style={styles.iconoSpotify}>🎵</span>
-      </a>
+      </div>
+      {errorControl && <p style={styles.errorControl}>{errorControl}</p>}
     </div>
   );
 }
@@ -81,10 +131,17 @@ const styles = {
     margin: '0 auto',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '14px',
     padding: '8px 18px',
+  },
+  linkInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
     textDecoration: 'none',
     color: 'inherit',
+    flex: 1,
+    minWidth: 0,
   },
   portada: {
     width: '40px',
@@ -124,14 +181,37 @@ const styles = {
     height: '100%',
     background: 'var(--mint-300)',
   },
+  controles: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    flexShrink: 0,
+  },
+  botonControl: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--paper-050)',
+    fontSize: '1rem',
+    cursor: 'pointer',
+    padding: '6px 8px',
+    borderRadius: '6px',
+    lineHeight: 1,
+  },
+  botonPrincipal: {
+    background: 'var(--navy-800)',
+    fontSize: '1.05rem',
+  },
   tiempo: {
     fontFamily: 'var(--font-mono)',
     fontSize: '0.68rem',
     opacity: 0.55,
     flexShrink: 0,
   },
-  iconoSpotify: {
-    fontSize: '1.1rem',
-    flexShrink: 0,
+  errorControl: {
+    maxWidth: '900px',
+    margin: '0 auto',
+    padding: '0 18px 8px',
+    fontSize: '0.68rem',
+    color: 'var(--coral-500)',
   },
 };
