@@ -167,6 +167,7 @@ export default function App() {
           <WorldClockPanel />
         </aside>
       </div>
+      <NowPlayingBar />
     </>
   );
 }
