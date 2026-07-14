@@ -11,25 +11,17 @@ function faviconUrl(url) {
 }
 
 // Spotify sí tiene un esquema de apertura oficial y bien documentado
-// (spotify:), a diferencia de los bancos chilenos. Si la app de escritorio
-// está instalada, el sistema operativo la abre directo; si no, después de
-// un momento breve sin cambiar de pantalla, cae de vuelta a la web. El
-// resto de "Webs de Interés" sigue yendo siempre directo a la web.
+// (spotify:), a diferencia de los bancos chilenos. Se usa como un link
+// normal y honesto: si el sistema operativo tiene la app registrada para
+// ese esquema, la abre directo; si no, simplemente no pasa nada (sin
+// redireccionamientos por JavaScript de respaldo, que es justo el patrón
+// que Google Safe Browsing puede confundir con phishing).
 function esSpotify(sitio) {
   return /spotify/i.test(sitio.nombre) || /spotify\.com/i.test(sitio.url);
 }
 
-function manejarClic(e, sitio) {
-  if (!esSpotify(sitio)) return; // comportamiento normal: deja que el <a> navegue como siempre
-
-  e.preventDefault();
-  const timer = setTimeout(() => {
-    if (document.visibilityState === 'visible') {
-      window.open(sitio.url, '_blank', 'noopener');
-    }
-  }, 1200);
-  window.addEventListener('pagehide', () => clearTimeout(timer), { once: true });
-  window.location.href = 'spotify:preferences';
+function obtenerHref(sitio) {
+  return esSpotify(sitio) ? 'spotify:preferences' : sitio.url;
 }
 
 export default function WebLinks() {
@@ -73,7 +65,7 @@ export default function WebLinks() {
         {sitios.map((s, i) => (
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(s.nombre)} title="Quitar">✕</button>
-            <a href={s.url} target="_blank" rel="noreferrer" style={styles.link} onClick={(e) => manejarClic(e, s)}>
+            <a href={obtenerHref(s)} target="_blank" rel="noreferrer" style={styles.link}>
               <img src={faviconUrl(s.url)} alt="" style={styles.logo} />
               <span style={styles.name}>{s.nombre}</span>
             </a>
