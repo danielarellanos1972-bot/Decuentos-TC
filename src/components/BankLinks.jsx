@@ -21,11 +21,22 @@ const APPS_BANCARIAS = [
 ];
 
 // Entidades que no tienen app para clientes (ej. el Banco Central regula,
-// no es un banco comercial) — siempre van directo a su sitio web, sin
-// intentar buscar una app que no existe.
+// no es un banco comercial) — siempre van directo a su sitio web.
 const SIN_APP = [/banco\s*central/i];
 
-function obtenerUrlTienda(nombreBanco, esIOS) {
+// El destino se calcula directo como el href del link (sin interceptar el
+// clic con JavaScript): así el navegador ve exactamente a dónde va a ir,
+// sin desajuste entre lo que se muestra y lo que realmente pasa al hacer
+// clic — necesario para que Chrome/Google no confundan esto con un
+// redireccionamiento encubierto tipo phishing.
+function obtenerHref(nombreBanco, urlWeb) {
+  if (SIN_APP.some((rx) => rx.test(nombreBanco))) return urlWeb;
+
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const esIOS = /iPhone|iPad|iPod/.test(ua);
+  const esAndroid = /Android/.test(ua);
+  if (!esIOS && !esAndroid) return urlWeb;
+
   const conocida = APPS_BANCARIAS.find((a) => a.match.test(nombreBanco));
   if (esIOS) {
     return conocida
@@ -33,22 +44,6 @@ function obtenerUrlTienda(nombreBanco, esIOS) {
       : `https://apps.apple.com/cl/search?term=${encodeURIComponent(nombreBanco)}`;
   }
   return `https://play.google.com/store/search?q=${encodeURIComponent(nombreBanco)}&c=apps`;
-}
-
-// En el celular manda directo a la ficha de la tienda (si ya está instalada
-// la app, el botón dice "Abrir"; si no, "Obtener/Instalar"). En PC/Mac, o
-// para entidades sin app (SIN_APP), va directo al sitio web.
-function manejarClicBanco(nombreBanco, urlWeb) {
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  const esIOS = /iPhone|iPad|iPod/.test(ua);
-  const esAndroid = /Android/.test(ua);
-
-  if (SIN_APP.some((rx) => rx.test(nombreBanco)) || (!esIOS && !esAndroid)) {
-    window.open(urlWeb, '_blank', 'noopener');
-    return;
-  }
-
-  window.location.href = obtenerUrlTienda(nombreBanco, esIOS);
 }
 
 export default function BankLinks() {
@@ -93,8 +88,9 @@ export default function BankLinks() {
           <div key={i} style={styles.card}>
             <button style={styles.removeBtn} onClick={() => quitar(b.nombre)} title="Quitar">✕</button>
             <a
-              href={b.url}
-              onClick={(e) => { e.preventDefault(); manejarClicBanco(b.nombre, b.url); }}
+              href={obtenerHref(b.nombre, b.url)}
+              target="_blank"
+              rel="noreferrer"
               style={styles.link}
             >
               <img src={faviconUrl(b.url)} alt="" style={styles.logo} />
