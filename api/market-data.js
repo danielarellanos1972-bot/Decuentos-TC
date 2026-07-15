@@ -3,19 +3,24 @@
 // GET /api/market-data
 //
 // Junta indicadores financieros de Chile para los paneles laterales:
-// - UF, UTM, Dólar (USD/CLP), IPC del mes → mindicador.cl (republica datos
-//   oficiales del Banco Central de Chile, sin necesidad de API key propia)
-// - Dólar Canadiense (CAD/CLP) → calculado cruzando el USD/CLP de mindicador
-//   con el tipo de cambio USD/CAD de open.er-api.com (el Banco Central de
-//   Chile no publica CAD de forma regular)
+// - UF, UTM, Dólar (USD/CLP), TPM, Desempleo → Banco Central de Chile, vía
+//   la API BDE (requiere BCCH_USER/BCCH_PASS). mindicador.cl queda como
+//   respaldo secundario para estos 5 (por si las credenciales fallan), ya
+//   que mindicador.cl bloquea o limita el tráfico específico de Vercel de
+//   forma intermitente y no es confiable como fuente principal.
+// - Euro, Cobre, IPC del mes → mindicador.cl (todavía no migrados al Banco
+//   Central; si mindicador.cl no responde, se muestran como "No disponible")
+// - Dólar Canadiense (CAD/CLP) → calculado cruzando el USD/CLP con el tipo
+//   de cambio USD/CAD de open.er-api.com (el Banco Central de Chile no
+//   publica CAD de forma regular)
 // - IPC acumulado 12 meses → calculado componiendo las variaciones mensuales
 //   del último año desde mindicador.cl
-// - IPSA → Bolsa de Santiago no tiene API pública oficial gratuita; se intenta
-//   una fuente de mercado de mejor esfuerzo. Si falla, se devuelve null y el
-//   frontend lo muestra como "No disponible" en vez de romper la página.
+// - IPSA, IMACEC, Tasa Hipotecaria, TCR, EEE → Banco Central de Chile
+// - Índices internacionales (S&P 500, Stoxx 50, etc.) → Yahoo Finance
 //
-// No requiere variables de entorno: todas las fuentes usadas aquí son gratuitas
-// y no piden API key.
+// Variables de entorno requeridas: BCCH_USER, BCCH_PASS (para todo lo que
+// viene del Banco Central). El resto de fuentes son gratuitas y no piden
+// API key.
 
 const fetchConTimeout = (url, options, timeoutMs) => {
   const controller = new AbortController();
@@ -255,6 +260,25 @@ function getEee() {
   return getSerieBCentral('F089.IPC.V12.LP.M');
 }
 
+// UF, UTM, Dólar observado, TPM y Desempleo — directo del Banco Central
+// (más confiable desde Vercel que mindicador.cl). Códigos confirmados en el
+// catálogo oficial de la API BDE.
+function getUfBCentral() {
+  return getSerieBCentral('F073.UFF.PRE.Z.D');
+}
+function getUtmBCentral() {
+  return getSerieBCentral('F073.UTR.PRE.Z.M');
+}
+function getDolarBCentral() {
+  return getSerieBCentral('F073.TCO.PRE.Z.D');
+}
+function getTpmBCentral() {
+  return getSerieBCentral('F022.TPM.TIN.D001.NO.Z.D');
+}
+function getDesempleoBCentral() {
+  return getSerieBCentral('F049.DES.TAS.INE.10.M');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -262,7 +286,16 @@ export default async function handler(req, res) {
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
-  const [base, ipcAnualCalculado, imacec, tasaHipotecaria, tcr, eee, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
+  const [
+    ufBC, utmBC, dolarBC, tpmBC, desempleoBC,
+    base, ipcAnualCalculado, imacec, tasaHipotecaria, tcr, eee,
+    ipsa, sp500, europa, ibex, asia, petroleo, oro,
+  ] = await Promise.all([
+    getUfBCentral(),
+    getUtmBCentral(),
+    getDolarBCentral(),
+    getTpmBCentral(),
+    getDesempleoBCentral(),
     getIndicadoresBase().catch(() => null),
     getIpcAnual(),
     getImacec(),
@@ -277,9 +310,12 @@ export default async function handler(req, res) {
     getQuote('CL=F', 'Petróleo (WTI)'),
     getQuote('GC=F', 'Oro'),
   ]);
-  const avisoBase = base ? null : 'UF/UTM/USD/Euro/cobre/TPM/desempleo no disponibles en este momento (mindicador.cl no respondió).';
+  // El aviso de "mindicador.cl no respondió" ahora solo aplica a lo que
+  // sigue dependiendo de esa fuente (Euro, Cobre) — UF/UTM/USD/TPM/Desempleo
+  // ya vienen del Banco Central y no se ven afectados si mindicador falla.
+  const avisoBase = base ? null : 'Euro/cobre no disponibles en este momento (mindicador.cl no respondió).';
 
-  const usdClp = base?.dolar?.valor || null;
+  const usdClp = dolarBC?.valor || base?.dolar?.valor || null;
   const cadClp = await getCadClp(usdClp);
 
   // El IPC mensual de mindicador.cl se descarta si quedó desactualizado (>55 días);
@@ -292,16 +328,16 @@ export default async function handler(req, res) {
   return res.status(200).json({
     fecha: new Date().toISOString(),
     avisoBase,
-    uf: base?.uf ? { valor: base.uf.valor, fecha: base.uf.fecha } : null,
-    utm: base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null,
-    usd: usdClp ? { valor: usdClp, fecha: base.dolar.fecha } : null,
+    uf: ufBC || (base?.uf ? { valor: base.uf.valor, fecha: base.uf.fecha } : null),
+    utm: utmBC || (base?.utm ? { valor: base.utm.valor, fecha: base.utm.fecha } : null),
+    usd: usdClp ? { valor: usdClp, fecha: dolarBC?.fecha || base?.dolar?.fecha } : null,
     cad: cadClp ? { valor: cadClp } : null,
     eur: base?.euro ? { valor: base.euro.valor, fecha: base.euro.fecha } : null,
     ipcMensual,
     ipcAnual,
     cobre: base?.libra_cobre ? { valor: base.libra_cobre.valor, fecha: base.libra_cobre.fecha } : null,
-    tpm: base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null,
-    desempleo: base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null,
+    tpm: tpmBC || (base?.tpm ? { valor: base.tpm.valor, fecha: base.tpm.fecha } : null),
+    desempleo: desempleoBC || (base?.tasa_desempleo ? { valor: base.tasa_desempleo.valor, fecha: base.tasa_desempleo.fecha } : null),
     imacec: imacec,
     tasaHipotecaria: tasaHipotecaria,
     tcr: tcr,
