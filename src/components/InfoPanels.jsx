@@ -9,6 +9,16 @@ const fmtCLP = (n) =>
 const fmtPct = (n) =>
   n == null ? '—' : `${n > 0 ? '+' : ''}${n.toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`;
 
+// Interpretación clásica de barómetro, según el rango de presión (hPa).
+// Se usa tanto en el barómetro como en el detalle del clima, para que el
+// número tenga un significado directo ("¿esto es bueno o malo?").
+const clasificarPresion = (hpa) => {
+  if (hpa == null) return null;
+  if (hpa < 1000) return 'Lluvia';
+  if (hpa > 1020) return 'Soleado';
+  return 'Nublado';
+};
+
 const fmtPeriodo = (fechaISO) => {
   if (!fechaISO) return null;
   const d = new Date(fechaISO);
@@ -509,7 +519,9 @@ function WeatherDetailModal({ ubicacion, onClose }) {
               </div>
               <div style={styles.modalStat}>
                 <p style={styles.modalStatLabel}>Presión</p>
-                <p style={styles.modalStatValor}>{detalle.presion} hPa</p>
+                <p style={styles.modalStatValor}>
+                  {detalle.presion} hPa{clasificarPresion(detalle.presion) ? ` (${clasificarPresion(detalle.presion)})` : ''}
+                </p>
               </div>
               <div style={styles.modalStat}>
                 <p style={styles.modalStatLabel}>Amanecer</p>
@@ -610,16 +622,11 @@ function BarometroWidget() {
   const puntaX = cx + radioAguja * Math.cos(thetaRad);
   const puntaY = cy + radioAguja * Math.sin(thetaRad);
 
-  let estado = 'Normal';
+  const estado = clasificarPresion(presion) || 'Normal';
   let colorEstado = 'var(--gold-300)';
   if (presion != null) {
-    if (presion < 1000) {
-      estado = 'Baja (inestable)';
-      colorEstado = 'var(--coral-500)';
-    } else if (presion > 1020) {
-      estado = 'Alta (estable)';
-      colorEstado = 'var(--mint-300)';
-    }
+    if (presion < 1000) colorEstado = 'var(--coral-500)';
+    else if (presion > 1020) colorEstado = 'var(--mint-300)';
   }
 
   return (
@@ -1235,16 +1242,16 @@ const styles = {
   barometroCard: {
     background: 'var(--navy-800)', borderRadius: '12px', padding: '12px', marginBottom: '12px',
   },
-  barometroTopRow: { display: 'flex', alignItems: 'center', gap: '10px' },
-  barometroSvg: { width: '110px', height: '64px', flexShrink: 0, display: 'block' },
+  barometroTopRow: { display: 'flex', alignItems: 'center', gap: '12px' },
+  barometroSvg: { width: '150px', height: '90px', flexShrink: 0, display: 'block' },
   barometroInfo: { flex: 1, minWidth: 0 },
-  barometroLugar: { fontSize: '0.75rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px' },
+  barometroLugar: { fontSize: '0.92rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 3px' },
   barometroValor: {
-    fontFamily: 'var(--font-mono)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 1px',
+    fontFamily: 'var(--font-mono)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px',
   },
-  barometroEstado: { fontSize: '0.68rem', fontWeight: 600, margin: 0 },
-  barometroVerMas: { fontSize: '0.6rem', opacity: 0.45, margin: '4px 0 0' },
+  barometroEstado: { fontSize: '0.85rem', fontWeight: 600, margin: 0 },
+  barometroVerMas: { fontSize: '0.72rem', opacity: 0.5, margin: '5px 0 0' },
   barometroEtiquetaSvg: {
-    fontSize: '9px', fontFamily: 'var(--font-display)', fill: 'var(--paper-100)', opacity: 0.7,
+    fontSize: '13px', fontFamily: 'var(--font-display)', fill: 'var(--paper-100)', opacity: 0.8,
   },
 };
