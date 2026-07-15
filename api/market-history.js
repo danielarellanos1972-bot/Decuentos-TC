@@ -74,6 +74,16 @@ const CODIGOS_BCENTRAL = {
   imacec: 'F032.IMC.IND.Z.Z.EP18.Z.Z.0.M',
 };
 
+// El IMACEC es un dato mensual (un solo punto por mes). Si se pide un rango
+// corto (7D/30D), lo más probable es que no caiga ningún punto publicado
+// dentro de esa ventana tan angosta y llegue vacío. Por eso, para series
+// mensuales, se pide como mínimo este piso de días hacia atrás, sin
+// importar el período elegido en pantalla — así siempre hay puntos que
+// mostrar (el gráfico igual se ve, solo que cubre más rango del pedido).
+const PISO_DIAS_BCENTRAL = {
+  imacec: 400,
+};
+
 async function historialBCentral(codigo, dias) {
   const serie = CODIGOS_BCENTRAL[codigo];
   if (!serie) return { puntos: [], diagnostico: ['Código de serie del Banco Central no configurado.'] };
@@ -83,8 +93,9 @@ async function historialBCentral(codigo, dias) {
     return { puntos: [], diagnostico: ['Faltan las credenciales del Banco Central (BCCH_USER/BCCH_PASS) en Vercel.'] };
   }
 
+  const diasEfectivos = Math.max(dias, PISO_DIAS_BCENTRAL[codigo] || 0);
   const hoy = new Date();
-  const desde = new Date(hoy.getTime() - dias * 24 * 60 * 60 * 1000);
+  const desde = new Date(hoy.getTime() - diasEfectivos * 24 * 60 * 60 * 1000);
   const fmt = (d) => d.toISOString().slice(0, 10);
 
   const params = new URLSearchParams({
