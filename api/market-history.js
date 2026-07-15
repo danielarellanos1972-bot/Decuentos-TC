@@ -97,7 +97,7 @@ async function historialBCentral(codigo, dias) {
   const hoy = new Date();
   const desde = new Date(hoy.getTime() - diasEfectivos * 24 * 60 * 60 * 1000);
   const fmt = (d) => d.toISOString().slice(0, 10);
-
+  
   const params = new URLSearchParams({
     user: BCCH_USER,
     pass: BCCH_PASS,
