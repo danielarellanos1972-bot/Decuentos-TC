@@ -1246,7 +1246,7 @@ const styles = {
   barometroSvg: { width: '150px', height: '90px', flexShrink: 0, display: 'block' },
   barometroInfo: { flex: 1, minWidth: 0 },
   barometroLugar: {
-    fontSize: '0.75rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 3px',
+    fontSize: '0.62rem', fontWeight: 600, color: 'var(--paper-050)', margin: '0 0 3px',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   barometroValor: {
