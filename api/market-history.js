@@ -75,6 +75,7 @@ const CODIGOS_BCENTRAL = {
   tasa_hipotecaria: 'F022.VIV.TIP.MA03.UF.Z.M',
   tcr: 'F073.TCR.IND.199101.M',
   eee: 'F089.IPC.V12.LP.M',
+  tib: 'F022.TIB.INC.D001.NO.Z.D',
 };
 
 // El IMACEC, la tasa hipotecaria, el TCR y la EEE son datos mensuales (un
