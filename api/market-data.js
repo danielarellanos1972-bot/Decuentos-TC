@@ -132,7 +132,7 @@ async function getImacec() {
   if (!BCCH_USER || !BCCH_PASS) return null;
   try {
     const hoy = new Date();
-    const desde = new Date(hoy.getTime() - 400 * 24 * 60 * 60 * 1000);
+    const desde = new Date(hoy.getTime() - 600 * 24 * 60 * 60 * 1000);
     const fmt = (d) => d.toISOString().slice(0, 10);
     const params = new URLSearchParams({
       user: BCCH_USER,
