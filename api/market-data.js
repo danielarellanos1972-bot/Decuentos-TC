@@ -162,6 +162,7 @@ async function getImacec() {
     return null;
   }
 }
+
 // Tasa de interés promedio de créditos hipotecarios para vivienda, a más de
 // 3 años (en UF) — mismo mecanismo que IMACEC, vía API BDE del Banco Central.
 async function getTasaHipotecaria() {
@@ -197,6 +198,7 @@ async function getTasaHipotecaria() {
     return null;
   }
 }
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
