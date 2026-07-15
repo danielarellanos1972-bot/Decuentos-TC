@@ -357,6 +357,26 @@ export function MarketPanel() {
                 : undefined
             }
           />
+          <Row
+            label="Tipo Cambio Real (TCR)"
+            value={data.tcr?.valor != null ? fmtCLP(data.tcr.valor) : 'No disponible'}
+            sub={fmtPeriodo(data.tcr?.fecha)}
+            onClick={
+              data.tcr?.valor != null
+                ? () => setHistorialAbierto({ label: 'Tipo de Cambio Real (índice base 1991=100)', fuente: 'bcentral', codigo: 'tcr' })
+                : undefined
+            }
+          />
+          <Row
+            label="Expectativas inflación (LP)"
+            value={data.eee?.valor != null ? fmtPct(data.eee.valor) : 'No disponible'}
+            sub={fmtPeriodo(data.eee?.fecha)}
+            onClick={
+              data.eee?.valor != null
+                ? () => setHistorialAbierto({ label: 'Expectativas de inflación, promedio largo plazo (EEE)', fuente: 'bcentral', codigo: 'eee' })
+                : undefined
+            }
+          />
         </div>
       )}
       {historialAbierto && (
