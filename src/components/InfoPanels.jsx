@@ -557,6 +557,7 @@ function BarometroWidget() {
   const [inputValor, setInputValor] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState(null);
+  const [detalleAbierto, setDetalleAbierto] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -623,8 +624,11 @@ function BarometroWidget() {
 
   return (
     <div style={styles.barometroCard}>
-      <div style={styles.barometroTopRow}>
-        <svg viewBox="0 0 200 115" style={styles.barometroSvg}>
+      <div
+        style={{ ...styles.barometroTopRow, cursor: presion != null ? 'pointer' : 'default' }}
+        onClick={() => presion != null && setDetalleAbierto(ubicacion)}
+      >
+        <svg viewBox="0 0 200 128" style={styles.barometroSvg}>
           <path
             d={`M ${cx - radioArco} ${cy} A ${radioArco} ${radioArco} 0 0 1 ${cx} ${cy - radioArco}`}
             fill="none" stroke="var(--coral-500)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
@@ -633,6 +637,8 @@ function BarometroWidget() {
             d={`M ${cx} ${cy - radioArco} A ${radioArco} ${radioArco} 0 0 1 ${cx + radioArco} ${cy}`}
             fill="none" stroke="var(--mint-300)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
           />
+          <text x={cx - radioArco} y={cy + 16} textAnchor="middle" style={styles.barometroEtiquetaSvg}>Lluvia</text>
+          <text x={cx + radioArco} y={cy + 16} textAnchor="middle" style={styles.barometroEtiquetaSvg}>Sol</text>
           {!cargando && !errorCarga && presion != null && (
             <line x1={cx} y1={cy} x2={puntaX} y2={puntaY} stroke="var(--paper-050)" strokeWidth="3" strokeLinecap="round" />
           )}
@@ -646,11 +652,12 @@ function BarometroWidget() {
             <>
               <p style={styles.barometroValor}>{presion} hPa</p>
               <p style={{ ...styles.barometroEstado, color: colorEstado }}>{estado}</p>
+              <p style={styles.barometroVerMas}>Toca para ver más detalle →</p>
             </>
           )}
         </div>
       </div>
-      <div style={styles.addRow}>
+      <div style={styles.addRow} onClick={(e) => e.stopPropagation()}>
         <input
           style={styles.addInput}
           placeholder="Cambiar ciudad (ej: Valparaíso)"
@@ -663,6 +670,9 @@ function BarometroWidget() {
         </button>
       </div>
       {errorBusqueda && <p style={styles.errorText}>{errorBusqueda}</p>}
+      {detalleAbierto && (
+        <WeatherDetailModal ubicacion={detalleAbierto} onClose={() => setDetalleAbierto(null)} />
+      )}
     </div>
   );
 }
@@ -1233,4 +1243,8 @@ const styles = {
     fontFamily: 'var(--font-mono)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 1px',
   },
   barometroEstado: { fontSize: '0.68rem', fontWeight: 600, margin: 0 },
+  barometroVerMas: { fontSize: '0.6rem', opacity: 0.45, margin: '4px 0 0' },
+  barometroEtiquetaSvg: {
+    fontSize: '9px', fontFamily: 'var(--font-display)', fill: 'var(--paper-100)', opacity: 0.7,
+  },
 };
