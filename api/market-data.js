@@ -54,16 +54,16 @@ const IPC_FALLBACK = {
 const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function getIndicadoresBase() {
-  for (let intento = 1; intento <= 3; intento++) {
+  for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await fetchConTimeout('https://mindicador.cl/api', { headers: HEADERS_MINDICADOR }, 9000);
+      const resp = await fetchConTimeout('https://mindicador.cl/api', { headers: HEADERS_MINDICADOR }, 6000);
       if (resp.ok) return resp.json();
     } catch {
       // si falla, se reintenta (con una breve espera) antes de rendirse
     }
-    if (intento < 3) await esperar(800 * intento);
+    if (intento < 2) await esperar(500);
   }
-  throw new Error('mindicador.cl no respondió correctamente tras 3 intentos');
+  throw new Error('mindicador.cl no respondió correctamente tras 2 intentos');
 }
 
 async function getCadClp(usdClp) {
@@ -262,17 +262,8 @@ export default async function handler(req, res) {
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
-  let base = null;
-  let avisoBase = null;
-  try {
-    base = await getIndicadoresBase();
-  } catch {
-    avisoBase = 'UF/UTM/USD/Euro/cobre/TPM/desempleo no disponibles en este momento (mindicador.cl no respondió).';
-  }
-
-  const usdClp = base?.dolar?.valor || null;
-  const [cadClp, ipcAnualCalculado, imacec, tasaHipotecaria, tcr, eee, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
-    getCadClp(usdClp),
+  const [base, ipcAnualCalculado, imacec, tasaHipotecaria, tcr, eee, ipsa, sp500, europa, ibex, asia, petroleo, oro] = await Promise.all([
+    getIndicadoresBase().catch(() => null),
     getIpcAnual(),
     getImacec(),
     getTasaHipotecaria(),
@@ -286,6 +277,10 @@ export default async function handler(req, res) {
     getQuote('CL=F', 'Petróleo (WTI)'),
     getQuote('GC=F', 'Oro'),
   ]);
+  const avisoBase = base ? null : 'UF/UTM/USD/Euro/cobre/TPM/desempleo no disponibles en este momento (mindicador.cl no respondió).';
+
+  const usdClp = base?.dolar?.valor || null;
+  const cadClp = await getCadClp(usdClp);
 
   // El IPC mensual de mindicador.cl se descarta si quedó desactualizado (>55 días);
   // en ese caso se usa el respaldo manual (IPC_FALLBACK) en vez de "No disponible",
