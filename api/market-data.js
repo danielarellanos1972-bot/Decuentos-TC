@@ -279,6 +279,23 @@ function getDesempleoBCentral() {
   return getSerieBCentral('F049.DES.TAS.INE.10.M');
 }
 
+// Tasa de Interés Interbancaria (TIB) — tasa de referencia a un día entre
+// bancos, la que suele citarse como "tasa interbancaria" o "TAB".
+function getTibBCentral() {
+  return getSerieBCentral('F022.TIB.INC.D001.NO.Z.D');
+}
+
+// El Banco Central limita a un máximo de 5 consultas por segundo por cuenta.
+// Como ahora se piden 10 series distintas del Banco Central en la misma
+// carga de la página, hay que espaciarlas en el tiempo en vez de mandarlas
+// todas de golpe (lo que las hacía fallar entre sí por exceso de consultas
+// simultáneas). Cada función se llama con un pequeño desfase, sin bloquear
+// el resto de la carga de datos (Yahoo Finance, mindicador.cl, etc.), que
+// sigue funcionando en paralelo sin este límite.
+function conEspaciado(iniciadores, espaciadoMs) {
+  return Promise.all(iniciadores.map((fn, i) => esperar(i * espaciadoMs).then(fn)));
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -287,21 +304,16 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
   const [
-    ufBC, utmBC, dolarBC, tpmBC, desempleoBC,
-    base, ipcAnualCalculado, imacec, tasaHipotecaria, tcr, eee,
+    [ufBC, utmBC, dolarBC, tpmBC, desempleoBC, tibBC, imacec, tasaHipotecaria, tcr, eee],
+    base, ipcAnualCalculado,
     ipsa, sp500, europa, ibex, asia, petroleo, oro,
   ] = await Promise.all([
-    getUfBCentral(),
-    getUtmBCentral(),
-    getDolarBCentral(),
-    getTpmBCentral(),
-    getDesempleoBCentral(),
+    conEspaciado(
+      [getUfBCentral, getUtmBCentral, getDolarBCentral, getTpmBCentral, getDesempleoBCentral, getTibBCentral, getImacec, getTasaHipotecaria, getTcr, getEee],
+      300
+    ),
     getIndicadoresBase().catch(() => null),
     getIpcAnual(),
-    getImacec(),
-    getTasaHipotecaria(),
-    getTcr(),
-    getEee(),
     getQuote('^IPSA', 'IPSA'),
     getQuote('^GSPC', 'S&P 500 (NY)'),
     getQuote('^STOXX50E', 'Europa (Stoxx 50)'),
@@ -342,6 +354,7 @@ export default async function handler(req, res) {
     tasaHipotecaria: tasaHipotecaria,
     tcr: tcr,
     eee: eee,
+    tib: tibBC,
     indices: [ipsa, sp500, europa, ibex, asia, petroleo, oro],
   });
 }
