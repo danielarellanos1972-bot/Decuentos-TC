@@ -72,16 +72,19 @@ async function historialMindicadorCrudo(codigo, dias) {
 const CODIGOS_BCENTRAL = {
   ipsa: 'F013.IBC.IND.N.7.LAC.CL.CLP.BLO.D',
   imacec: 'F032.IMC.IND.Z.Z.EP18.Z.Z.0.M',
+  tasa_hipotecaria: 'F022.VIV.TIP.MA03.UF.Z.M',
 };
 
-// El IMACEC es un dato mensual (un solo punto por mes). Si se pide un rango
-// corto (7D/30D), lo más probable es que no caiga ningún punto publicado
-// dentro de esa ventana tan angosta y llegue vacío. Por eso, para series
-// mensuales, se pide como mínimo este piso de días hacia atrás, sin
-// importar el período elegido en pantalla — así siempre hay puntos que
-// mostrar (el gráfico igual se ve, solo que cubre más rango del pedido).
+// El IMACEC y la tasa hipotecaria son datos mensuales (un solo punto por
+// mes). Si se pide un rango corto (7D/30D), lo más probable es que no caiga
+// ningún punto publicado dentro de esa ventana tan angosta y llegue vacío.
+// Por eso, para series mensuales, se pide como mínimo este piso de días
+// hacia atrás, sin importar el período elegido en pantalla — así siempre
+// hay puntos que mostrar (el gráfico igual se ve, solo que cubre más rango
+// del pedido).
 const PISO_DIAS_BCENTRAL = {
   imacec: 400,
+  tasa_hipotecaria: 400,
 };
 
 async function historialBCentral(codigo, dias) {
