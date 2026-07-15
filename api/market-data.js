@@ -23,7 +23,10 @@ const fetchConTimeout = (url, options, timeoutMs) => {
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
-const HEADERS_MINDICADOR = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)' };
+const HEADERS_MINDICADOR = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+};
 
 // mindicador.cl a veces deja de actualizar un indicador puntual (le ha pasado
 // al IPC) aunque el resto de la API siga funcionando. Esta función descarta
