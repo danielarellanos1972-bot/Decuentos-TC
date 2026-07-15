@@ -377,6 +377,16 @@ export function MarketPanel() {
                 : undefined
             }
           />
+          <Row
+            label="Tasa Interbancaria (TIB)"
+            value={data.tib?.valor != null ? `${fmtCLP(data.tib.valor)}%` : 'No disponible'}
+            sub={fmtPeriodo(data.tib?.fecha)}
+            onClick={
+              data.tib?.valor != null
+                ? () => setHistorialAbierto({ label: 'Tasa de Interés Interbancaria (TIB)', fuente: 'bcentral', codigo: 'tib' })
+                : undefined
+            }
+          />
         </div>
       )}
       {historialAbierto && (
