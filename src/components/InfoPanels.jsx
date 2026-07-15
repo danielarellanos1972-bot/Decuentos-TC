@@ -545,6 +545,128 @@ function WeatherDetailModal({ ubicacion, onClose }) {
   );
 }
 
+// Coordenadas aproximadas de Colina, Región Metropolitana (ubicación por
+// defecto del barómetro).
+const COLINA = { nombre: 'Colina', lat: -33.2007, lon: -70.6667 };
+
+function BarometroWidget() {
+  const [ubicacion, setUbicacion] = useState(COLINA);
+  const [presion, setPresion] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
+  const [inputValor, setInputValor] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [errorBusqueda, setErrorBusqueda] = useState(null);
+
+  useEffect(() => {
+    let activo = true;
+    setCargando(true);
+    setErrorCarga(null);
+    fetch(`/api/weather-detail?lat=${ubicacion.lat}&lon=${ubicacion.lon}&nombre=${encodeURIComponent(ubicacion.nombre)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!activo) return;
+        if (d.error || d.presion == null) setErrorCarga('No se pudo cargar la presión.');
+        else setPresion(d.presion);
+      })
+      .catch(() => activo && setErrorCarga('No se pudo conectar.'))
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
+  }, [ubicacion.lat, ubicacion.lon]);
+
+  const buscarLugar = async () => {
+    const nombre = inputValor.trim();
+    if (!nombre) return;
+    setBuscando(true);
+    setErrorBusqueda(null);
+    try {
+      const resp = await fetch(`/api/geocode?nombre=${encodeURIComponent(nombre)}`);
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.error || 'No se pudo encontrar ese lugar');
+      setUbicacion({ nombre: d.pais ? `${d.nombre}, ${d.pais}` : d.nombre, lat: d.lat, lon: d.lon });
+      setInputValor('');
+    } catch (err) {
+      setErrorBusqueda(err.message || 'Error al buscar el lugar');
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  // Escala del medidor: 970-1050 hPa cubre prácticamente cualquier
+  // condición real. La aguja barre un semicírculo: 970 → izquierda,
+  // ~1010 → arriba, 1050 → derecha.
+  const MIN = 970;
+  const MAX = 1050;
+  const cx = 100;
+  const cy = 100;
+  const radioAguja = 62;
+  const radioArco = 78;
+  const valorParaAngulo = presion != null ? presion : (MIN + MAX) / 2;
+  const frac = Math.max(0, Math.min(1, (valorParaAngulo - MIN) / (MAX - MIN)));
+  const thetaRad = ((180 + frac * 180) * Math.PI) / 180;
+  const puntaX = cx + radioAguja * Math.cos(thetaRad);
+  const puntaY = cy + radioAguja * Math.sin(thetaRad);
+
+  let estado = 'Normal';
+  let colorEstado = 'var(--gold-300)';
+  if (presion != null) {
+    if (presion < 1000) {
+      estado = 'Baja (inestable)';
+      colorEstado = 'var(--coral-500)';
+    } else if (presion > 1020) {
+      estado = 'Alta (estable)';
+      colorEstado = 'var(--mint-300)';
+    }
+  }
+
+  return (
+    <div style={styles.barometroCard}>
+      <div style={styles.barometroTopRow}>
+        <svg viewBox="0 0 200 115" style={styles.barometroSvg}>
+          <path
+            d={`M ${cx - radioArco} ${cy} A ${radioArco} ${radioArco} 0 0 1 ${cx} ${cy - radioArco}`}
+            fill="none" stroke="var(--coral-500)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
+          />
+          <path
+            d={`M ${cx} ${cy - radioArco} A ${radioArco} ${radioArco} 0 0 1 ${cx + radioArco} ${cy}`}
+            fill="none" stroke="var(--mint-300)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
+          />
+          {!cargando && !errorCarga && presion != null && (
+            <line x1={cx} y1={cy} x2={puntaX} y2={puntaY} stroke="var(--paper-050)" strokeWidth="3" strokeLinecap="round" />
+          )}
+          <circle cx={cx} cy={cy} r="5" fill="var(--gold-300)" />
+        </svg>
+        <div style={styles.barometroInfo}>
+          <p style={styles.barometroLugar}>{ubicacion.nombre}</p>
+          {cargando && <p style={styles.loadingText}>Cargando…</p>}
+          {errorCarga && <p style={styles.errorText}>{errorCarga}</p>}
+          {!cargando && !errorCarga && presion != null && (
+            <>
+              <p style={styles.barometroValor}>{presion} hPa</p>
+              <p style={{ ...styles.barometroEstado, color: colorEstado }}>{estado}</p>
+            </>
+          )}
+        </div>
+      </div>
+      <div style={styles.addRow}>
+        <input
+          style={styles.addInput}
+          placeholder="Cambiar ciudad (ej: Valparaíso)"
+          value={inputValor}
+          onChange={(e) => setInputValor(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && buscarLugar()}
+        />
+        <button style={styles.addBtn} onClick={buscarLugar} disabled={buscando}>
+          {buscando ? '…' : '🔍'}
+        </button>
+      </div>
+      {errorBusqueda && <p style={styles.errorText}>{errorBusqueda}</p>}
+    </div>
+  );
+}
+
 export function WeatherPanel() {
   const [ubicaciones, setUbicaciones] = useState(getUbicaciones());
   const [inputValor, setInputValor] = useState('');
@@ -582,6 +704,7 @@ export function WeatherPanel() {
 
   return (
     <PanelShell title="Clima">
+      <BarometroWidget />
       {loading && <p style={styles.loadingText}>Cargando clima…</p>}
       {error && <p style={styles.errorText}>{error}</p>}
       {data?.ubicaciones && (
@@ -1099,4 +1222,15 @@ const styles = {
   relojFecha: {
     fontSize: '0.82rem', color: 'var(--paper-050)', opacity: 0.75, textTransform: 'capitalize', margin: '0 0 18px',
   },
+  barometroCard: {
+    background: 'var(--navy-800)', borderRadius: '12px', padding: '12px', marginBottom: '12px',
+  },
+  barometroTopRow: { display: 'flex', alignItems: 'center', gap: '10px' },
+  barometroSvg: { width: '110px', height: '64px', flexShrink: 0, display: 'block' },
+  barometroInfo: { flex: 1, minWidth: 0 },
+  barometroLugar: { fontSize: '0.75rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px' },
+  barometroValor: {
+    fontFamily: 'var(--font-mono)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 1px',
+  },
+  barometroEstado: { fontSize: '0.68rem', fontWeight: 600, margin: 0 },
 };
