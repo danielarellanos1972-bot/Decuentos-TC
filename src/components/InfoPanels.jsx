@@ -347,6 +347,16 @@ export function MarketPanel() {
                 : undefined
             }
           />
+          <Row
+            label="Tasa hipotecaria"
+            value={data.tasaHipotecaria?.valor != null ? `${fmtCLP(data.tasaHipotecaria.valor)}%` : 'No disponible'}
+            sub={fmtPeriodo(data.tasaHipotecaria?.fecha)}
+            onClick={
+              data.tasaHipotecaria?.valor != null
+                ? () => setHistorialAbierto({ label: 'Tasa hipotecaria (créditos vivienda +3 años, UF)', fuente: 'bcentral', codigo: 'tasa_hipotecaria' })
+                : undefined
+            }
+          />
         </div>
       )}
       {historialAbierto && (
