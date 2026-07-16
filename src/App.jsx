@@ -57,8 +57,8 @@ export default function App() {
       return;
     }
     setLoading(true);
-    setError(null);
     setMensaje(null);
+    setError(null);
     setOfertas([]);
     try {
       const fuente = getFuenteOficial(tarjetaSel.banco, tarjetaSel.nombre);
@@ -199,3 +199,4 @@ const styles = {
     fontSize: '0.72rem', opacity: 0.5, lineHeight: 1.5,
   },
 };
+
