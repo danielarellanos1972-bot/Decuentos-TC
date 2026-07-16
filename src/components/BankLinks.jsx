@@ -85,7 +85,7 @@ export default function BankLinks() {
       <h2 style={styles.h2}>Banco y Finanzas</h2>
       <div style={styles.grid}>
         {bancos.map((b, i) => (
-          <div key={i} style={styles.card}>
+          <div key={i} style={styles.card} className="card-face-hover">
             <button style={styles.removeBtn} onClick={() => quitar(b.nombre)} title="Quitar">✕</button>
             <a
               href={obtenerHref(b.nombre, b.url)}
