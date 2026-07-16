@@ -63,7 +63,7 @@ export default function WebLinks() {
       <h2 style={styles.h2}>Webs de Interés</h2>
       <div style={styles.grid}>
         {sitios.map((s, i) => (
-          <div key={i} style={styles.card}>
+          <div key={i} style={styles.card} className="card-face-hover">
             <button style={styles.removeBtn} onClick={() => quitar(s.nombre)} title="Quitar">✕</button>
             <a href={obtenerHref(s)} target="_blank" rel="noreferrer" style={styles.link}>
               <img src={faviconUrl(s.url)} alt="" style={styles.logo} />
