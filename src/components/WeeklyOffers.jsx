@@ -191,7 +191,7 @@ export default function WeeklyOffers({ tarjetas }) {
           const pendiente = pendientes[t.id];
 
           return (
-            <div key={t.id} style={styles.cardWrap}>
+            <div key={t.id} style={styles.cardWrap} className="card-face-hover">
               <button
                 style={{
                   ...styles.cardHeader,
