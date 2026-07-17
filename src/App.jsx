@@ -199,4 +199,3 @@ const styles = {
     fontSize: '0.72rem', opacity: 0.5, lineHeight: 1.5,
   },
 };
-
