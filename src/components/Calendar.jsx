@@ -185,6 +185,21 @@ export default function Calendar() {
     return mapa;
   }, [feriadosCL, feriadosExtra]);
 
+  // Cumpleaños: se detectan entre los eventos ya cargados de Google/Outlook
+  // (no es una fuente aparte), buscando la palabra "cumpleaños" en el
+  // título — así funciona con cualquier cumpleaños que agregues, sin tener
+  // que configurar nada aparte.
+  const cumpleanosPorDia = useMemo(() => {
+    const mapa = {};
+    (eventos || []).forEach((ev) => {
+      if (!ev.inicio || !/cumplea/i.test(ev.titulo || '')) return;
+      const clave = ev.inicio.slice(0, 10);
+      if (!mapa[clave]) mapa[clave] = [];
+      mapa[clave].push(ev);
+    });
+    return mapa;
+  }, [eventos]);
+
   const celdas = useMemo(() => generarCeldasDelMes(anio, mesIndex0), [anio, mesIndex0]);
   const claveHoy = claveFecha(hoy);
 
@@ -223,15 +238,21 @@ export default function Calendar() {
             const clave = claveFecha(fecha);
             const fuentesDelDia = [...new Set((eventosPorDia[clave] || []).map((ev) => ev.fuente))];
             const esFeriado = !!feriadosPorDia[clave];
+            const esCumpleanos = !!cumpleanosPorDia[clave];
             const esHoy = clave === claveHoy;
             const esSeleccionado = clave === diaSeleccionado;
+            const titulosParaTooltip = [
+              ...(esFeriado ? feriadosPorDia[clave].map((f) => f.nombre) : []),
+              ...(esCumpleanos ? cumpleanosPorDia[clave].map((ev) => ev.titulo) : []),
+            ];
             return (
               <button
                 key={clave}
                 onClick={() => setDiaSeleccionado(clave)}
-                title={esFeriado ? feriadosPorDia[clave].map((f) => f.nombre).join(' / ') : undefined}
+                title={titulosParaTooltip.length > 0 ? titulosParaTooltip.join(' / ') : undefined}
                 style={{
                   ...styles.celdaDia,
+                  ...(esCumpleanos ? styles.celdaCumpleanos : {}),
                   ...(esFeriado ? styles.celdaFeriado : {}),
                   ...(esHoy ? styles.celdaHoy : {}),
                   ...(esSeleccionado ? styles.celdaSeleccionada : {}),
@@ -301,7 +322,7 @@ export default function Calendar() {
           })}
         </div>
 
-        <p style={styles.fuenteNota}>Conectado a tu Google Calendar y tu Outlook. Feriados: Nager.Date (oficial por país).</p>
+        <p style={styles.fuenteNota}>Conectado a tu Google Calendar y tu Outlook · Feriados en rojo · Cumpleaños en verde (detectados por el título del evento).</p>
       </div>
     </section>
   );
@@ -336,6 +357,7 @@ const styles = {
     borderRadius: '8px', color: 'var(--paper-100)', fontSize: '0.82rem', display: 'flex',
     alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
   },
+  celdaCumpleanos: { border: '1px solid var(--mint-300)', color: 'var(--mint-300)', fontWeight: 700 },
   celdaFeriado: { border: '1px solid var(--coral-500)', color: 'var(--coral-500)', fontWeight: 700 },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
