@@ -12,6 +12,35 @@ const FUENTES = {
   outlook: { color: '#4FA0E0', etiqueta: 'Outlook' },
 };
 
+// Lista curada de países frecuentes para el selector de "otro país" (la API
+// de feriados soporta más de 100 países por código, pero se muestra un
+// listado acotado para que sea fácil de elegir).
+const PAISES_DISPONIBLES = [
+  { code: 'AR', nombre: 'Argentina' },
+  { code: 'PE', nombre: 'Perú' },
+  { code: 'CO', nombre: 'Colombia' },
+  { code: 'MX', nombre: 'México' },
+  { code: 'BR', nombre: 'Brasil' },
+  { code: 'UY', nombre: 'Uruguay' },
+  { code: 'EC', nombre: 'Ecuador' },
+  { code: 'BO', nombre: 'Bolivia' },
+  { code: 'PY', nombre: 'Paraguay' },
+  { code: 'PA', nombre: 'Panamá' },
+  { code: 'US', nombre: 'Estados Unidos' },
+  { code: 'CA', nombre: 'Canadá' },
+  { code: 'ES', nombre: 'España' },
+  { code: 'PT', nombre: 'Portugal' },
+  { code: 'DE', nombre: 'Alemania' },
+  { code: 'FR', nombre: 'Francia' },
+  { code: 'IT', nombre: 'Italia' },
+  { code: 'GB', nombre: 'Reino Unido' },
+  { code: 'CN', nombre: 'China' },
+  { code: 'JP', nombre: 'Japón' },
+  { code: 'AU', nombre: 'Australia' },
+];
+
+const PAIS_EXTRA_KEY = 'descuentos-tc-calendario-pais-extra';
+
 function claveFecha(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -42,6 +71,16 @@ export default function Calendar() {
   const [eventos, setEventos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [feriadosCL, setFeriadosCL] = useState([]);
+  const [feriadosExtra, setFeriadosExtra] = useState([]);
+  const [paisExtra, setPaisExtra] = useState(() => {
+    try {
+      return localStorage.getItem(PAIS_EXTRA_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
 
   useEffect(() => {
     let activo = true;
@@ -84,6 +123,46 @@ export default function Calendar() {
     };
   }, [anio, mesIndex0]);
 
+  // Los feriados de Chile se cargan siempre, una vez por año (no dependen
+  // del mes que se esté viendo).
+  useEffect(() => {
+    let activo = true;
+    fetch(`/api/holidays?year=${anio}&country=CL`)
+      .then((r) => r.json())
+      .then((d) => activo && setFeriadosCL(d.feriados || []))
+      .catch(() => activo && setFeriadosCL([]));
+    return () => {
+      activo = false;
+    };
+  }, [anio]);
+
+  // El país adicional es opcional; sus feriados se suman a los de Chile,
+  // nunca los reemplazan.
+  useEffect(() => {
+    if (!paisExtra) {
+      setFeriadosExtra([]);
+      return;
+    }
+    let activo = true;
+    fetch(`/api/holidays?year=${anio}&country=${paisExtra}`)
+      .then((r) => r.json())
+      .then((d) => activo && setFeriadosExtra(d.feriados || []))
+      .catch(() => activo && setFeriadosExtra([]));
+    return () => {
+      activo = false;
+    };
+  }, [anio, paisExtra]);
+
+  const cambiarPaisExtra = (code) => {
+    setPaisExtra(code);
+    try {
+      if (code) localStorage.setItem(PAIS_EXTRA_KEY, code);
+      else localStorage.removeItem(PAIS_EXTRA_KEY);
+    } catch {
+      // si localStorage falla, no es crítico — simplemente no persiste
+    }
+  };
+
   const eventosPorDia = useMemo(() => {
     const mapa = {};
     (eventos || []).forEach((ev) => {
@@ -96,6 +175,15 @@ export default function Calendar() {
     Object.values(mapa).forEach((lista) => lista.sort((a, b) => (a.inicio > b.inicio ? 1 : -1)));
     return mapa;
   }, [eventos]);
+
+  const feriadosPorDia = useMemo(() => {
+    const mapa = {};
+    [...feriadosCL, ...feriadosExtra].forEach((f) => {
+      if (!mapa[f.fecha]) mapa[f.fecha] = [];
+      mapa[f.fecha].push(f);
+    });
+    return mapa;
+  }, [feriadosCL, feriadosExtra]);
 
   const celdas = useMemo(() => generarCeldasDelMes(anio, mesIndex0), [anio, mesIndex0]);
   const claveHoy = claveFecha(hoy);
@@ -110,6 +198,7 @@ export default function Calendar() {
   };
 
   const eventosDelDiaSel = eventosPorDia[diaSeleccionado] || [];
+  const feriadosDelDiaSel = feriadosPorDia[diaSeleccionado] || [];
 
   return (
     <section style={styles.wrap}>
@@ -133,14 +222,17 @@ export default function Calendar() {
             if (!fecha) return <div key={`vacio-${i}`} />;
             const clave = claveFecha(fecha);
             const fuentesDelDia = [...new Set((eventosPorDia[clave] || []).map((ev) => ev.fuente))];
+            const esFeriado = !!feriadosPorDia[clave];
             const esHoy = clave === claveHoy;
             const esSeleccionado = clave === diaSeleccionado;
             return (
               <button
                 key={clave}
                 onClick={() => setDiaSeleccionado(clave)}
+                title={esFeriado ? feriadosPorDia[clave].map((f) => f.nombre).join(' / ') : undefined}
                 style={{
                   ...styles.celdaDia,
+                  ...(esFeriado ? styles.celdaFeriado : {}),
                   ...(esHoy ? styles.celdaHoy : {}),
                   ...(esSeleccionado ? styles.celdaSeleccionada : {}),
                 }}
@@ -158,13 +250,34 @@ export default function Calendar() {
           })}
         </div>
 
+        <div style={styles.paisExtraRow}>
+          <span style={styles.paisExtraLabel}>+ Feriados de otro país:</span>
+          <select
+            style={styles.paisExtraSelect}
+            value={paisExtra}
+            onChange={(e) => cambiarPaisExtra(e.target.value)}
+          >
+            <option value="">Ninguno</option>
+            {PAISES_DISPONIBLES.map((p) => (
+              <option key={p.code} value={p.code}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+
         <div style={styles.detalleDia}>
           <p style={styles.detalleFecha}>
             {new Date(`${diaSeleccionado}T00:00:00`).toLocaleDateString('es-CL', {
               weekday: 'long', day: 'numeric', month: 'long',
             })}
           </p>
-          {eventosDelDiaSel.length === 0 && !loading && (
+
+          {feriadosDelDiaSel.map((f, i) => (
+            <div key={i} style={styles.feriadoBanner}>
+              🎉 {f.nombre} {f.pais !== 'CL' ? `(${f.pais})` : ''}
+            </div>
+          ))}
+
+          {eventosDelDiaSel.length === 0 && feriadosDelDiaSel.length === 0 && !loading && (
             <p style={styles.sinEventos}>Sin actividades para este día.</p>
           )}
           {eventosDelDiaSel.map((ev) => {
@@ -188,7 +301,7 @@ export default function Calendar() {
           })}
         </div>
 
-        <p style={styles.fuenteNota}>Conectado a tu Google Calendar y tu Outlook.</p>
+        <p style={styles.fuenteNota}>Conectado a tu Google Calendar y tu Outlook. Feriados: Nager.Date (oficial por país).</p>
       </div>
     </section>
   );
@@ -223,6 +336,7 @@ const styles = {
     borderRadius: '8px', color: 'var(--paper-100)', fontSize: '0.82rem', display: 'flex',
     alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
   },
+  celdaFeriado: { border: '1px solid var(--coral-500)', color: 'var(--coral-500)', fontWeight: 700 },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
   puntosWrap: {
@@ -230,12 +344,25 @@ const styles = {
     display: 'flex', gap: '2px',
   },
   puntoEvento: { width: '4px', height: '4px', borderRadius: '50%' },
+  paisExtraRow: {
+    display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px',
+    borderTop: '1px solid var(--navy-700)', paddingTop: '12px',
+  },
+  paisExtraLabel: { fontSize: '0.72rem', opacity: 0.65, whiteSpace: 'nowrap' },
+  paisExtraSelect: {
+    flex: 1, background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
+    borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', outline: 'none',
+  },
   detalleDia: {
     borderTop: '1px solid var(--navy-700)', paddingTop: '14px',
     display: 'flex', flexDirection: 'column', gap: '8px',
   },
   detalleFecha: {
     fontSize: '0.9rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 4px', textTransform: 'capitalize',
+  },
+  feriadoBanner: {
+    background: 'rgba(232,96,76,0.15)', border: '1px solid var(--coral-500)', borderRadius: '8px',
+    padding: '8px 10px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--coral-500)',
   },
   sinEventos: { fontSize: '0.82rem', opacity: 0.6, margin: 0 },
   eventoItem: {
