@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
 
-// Mismos colores de marca usados en el Calendario, para que Google/Outlook
-// se reconozcan de un vistazo en toda la app.
+// Logos reales (mismo servicio de favicons que ya usamos para bancos y
+// webs), en vez de un punto de color genérico.
 const FUENTES = {
-  gmail: { color: 'var(--mint-300)', etiqueta: 'Correo Google', urlWeb: 'https://mail.google.com/mail/u/0/#inbox' },
-  outlook: { color: '#4FA0E0', etiqueta: 'Correo Outlook', urlWeb: 'https://outlook.live.com/mail/0/inbox' },
+  gmail: {
+    logo: 'https://www.google.com/s2/favicons?sz=64&domain=mail.google.com',
+    color: 'var(--mint-300)',
+    etiqueta: 'Gmail',
+    urlWeb: 'https://mail.google.com/mail/u/0/#inbox',
+  },
+  outlook: {
+    logo: 'https://www.google.com/s2/favicons?sz=64&domain=outlook.com',
+    color: '#4FA0E0',
+    etiqueta: 'Outlook',
+    urlWeb: 'https://outlook.live.com/mail/0/inbox',
+  },
 };
 
 // En Mac abre la app nativa de Outlook (donde Nano tiene ambas cuentas
@@ -43,7 +53,7 @@ export default function EmailPanel() {
     return (
       <a href={obtenerUrlDestino(fuente)} target="_blank" rel="noreferrer" style={styles.fila}>
         <div style={styles.filaIzq}>
-          <span style={{ ...styles.punto, background: fuente.color }} />
+          <img src={fuente.logo} alt="" style={styles.logo} />
           <span style={styles.filaLabel}>{fuente.etiqueta}</span>
         </div>
         <div style={styles.filaDer}>
@@ -89,7 +99,10 @@ const styles = {
     padding: '14px 0', textDecoration: 'none', color: 'inherit',
   },
   filaIzq: { display: 'flex', alignItems: 'center', gap: '10px' },
-  punto: { width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0 },
+  logo: {
+    width: '22px', height: '22px', borderRadius: '5px',
+    background: '#fff', objectFit: 'contain', padding: '2px', flexShrink: 0,
+  },
   filaLabel: { fontSize: '0.95rem', fontWeight: 600, color: 'var(--paper-050)' },
   filaDer: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' },
   subLabel: { fontSize: '0.68rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em' },
