@@ -96,7 +96,7 @@ export default function EmailPanel() {
   };
 
   const renderCeldaApp = (app) => (
-    <a key={app.key} href={app.href} className="card-face-hover" style={styles.celda}>
+    <a key={app.key} href={app.href} target="_blank" rel="noreferrer" className="card-face-hover" style={styles.celda}>
       <img src={app.logo} alt="" style={styles.logo} />
       <p style={styles.celdaLabel}>{app.etiqueta}</p>
       <span style={styles.subLabel}>Abrir aplicación</span>
