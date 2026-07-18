@@ -127,7 +127,7 @@ export default function Calendar() {
   // del mes que se esté viendo).
   useEffect(() => {
     let activo = true;
-    fetch(`/api/holidays?year=${anio}&country=CL`)
+    fetch(`/api/calendar-events?type=holidays&year=${anio}&country=CL`)
       .then((r) => r.json())
       .then((d) => activo && setFeriadosCL(d.feriados || []))
       .catch(() => activo && setFeriadosCL([]));
@@ -144,7 +144,7 @@ export default function Calendar() {
       return;
     }
     let activo = true;
-    fetch(`/api/holidays?year=${anio}&country=${paisExtra}`)
+    fetch(`/api/calendar-events?type=holidays&year=${anio}&country=${paisExtra}`)
       .then((r) => r.json())
       .then((d) => activo && setFeriadosExtra(d.feriados || []))
       .catch(() => activo && setFeriadosExtra([]));
