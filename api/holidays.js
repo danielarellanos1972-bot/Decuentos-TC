@@ -19,13 +19,11 @@ const fetchConTimeout = (url, options, timeoutMs) => {
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)', Accept: 'application/json' };
 
 async function feriadosChile(year) {
-  const resp = await fetchConTimeout('https://api.boostr.cl/holidays.json', { headers: HEADERS }, 8000);
+  const resp = await fetchConTimeout(`https://api.boostr.cl/holidays/${year}.json`, { headers: HEADERS }, 8000);
   if (!resp.ok) throw new Error(`Boostr respondió HTTP ${resp.status}`);
   const data = await resp.json();
   const lista = data?.data || [];
-  return lista
-    .filter((f) => f.date?.startsWith(String(year)))
-    .map((f) => ({ fecha: f.date, nombre: f.title, pais: 'CL' }));
+  return lista.map((f) => ({ fecha: f.date, nombre: f.title, pais: 'CL' }));
 }
 
 async function feriadosOtroPais(year, country) {
