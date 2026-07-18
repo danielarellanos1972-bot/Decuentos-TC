@@ -183,7 +183,7 @@ export default function WeeklyOffers({ tarjetas }) {
         <p style={styles.empty}>Agrega una tarjeta arriba para ver sus ofertas semanales.</p>
       )}
 
-      <div style={styles.list}>
+      <div style={styles.list} className="ofertas-grid">
         {tarjetas.map((t) => {
           const isOpen = expandedId === t.id;
           const colores = getBankColors(t.banco, t.nombre);
@@ -371,7 +371,7 @@ const styles = {
     border: '1px solid var(--navy-700)', borderRadius: '8px', padding: '10px', fontSize: '0.88rem',
   },
   empty: { color: 'var(--paper-100)', opacity: 0.6, fontSize: '0.9rem' },
-  list: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  list: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', alignItems: 'start' },
   cardWrap: { borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--navy-700)' },
   cardHeader: {
     width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
