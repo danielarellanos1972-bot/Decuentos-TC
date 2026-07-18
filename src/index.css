@@ -144,3 +144,13 @@ a:focus-visible {
     z-index: 5;
   }
 }
+
+/* "Ofertas Diarias en Restaurantes": 2 tarjetas por fila en pantallas
+   normales; 1 sola columna en celular, donde 2 columnas quedarían muy
+   apretadas para el contenido de cada tarjeta (mismo punto de quiebre que
+   el resto de la app usa para mobile). */
+@media (max-width: 640px) {
+  .ofertas-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
