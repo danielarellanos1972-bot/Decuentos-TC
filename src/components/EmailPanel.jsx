@@ -31,6 +31,25 @@ function obtenerUrlDestino(fuente) {
   return fuente.urlWeb;
 }
 
+// Teams y Google Meet: links estáticos y honestos (sin JavaScript de por
+// medio) — "msteams://" es el protocolo oficial documentado por Microsoft
+// para abrir la app de escritorio directo. Google Meet no tiene un
+// protocolo propio confiable, así que va directo a la web.
+const OTRAS_APPS = [
+  {
+    key: 'teams',
+    logo: 'https://www.google.com/s2/favicons?sz=64&domain=teams.microsoft.com',
+    etiqueta: 'Teams',
+    href: 'msteams://',
+  },
+  {
+    key: 'meet',
+    logo: 'https://www.google.com/s2/favicons?sz=64&domain=meet.google.com',
+    etiqueta: 'Google Meet',
+    href: 'https://meet.google.com',
+  },
+];
+
 export default function EmailPanel() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,44 +64,54 @@ export default function EmailPanel() {
     return () => { activo = false; };
   }, []);
 
-  const renderFila = (key, info) => {
+  const renderCeldaCorreo = (key, info) => {
     const fuente = FUENTES[key];
     const tieneError = info?.error;
     const cantidad = info?.unread;
 
     return (
-      <a href={obtenerUrlDestino(fuente)} target="_blank" rel="noreferrer" style={styles.fila}>
-        <div style={styles.filaIzq}>
-          <img src={fuente.logo} alt="" style={styles.logo} />
-          <span style={styles.filaLabel}>{fuente.etiqueta}</span>
-        </div>
-        <div style={styles.filaDer}>
-          {loading ? (
-            <span style={styles.cargando}>Cargando…</span>
-          ) : tieneError ? (
-            <span style={styles.noDisponible}>No disponible</span>
-          ) : (
-            <>
-              <span style={styles.subLabel}>Correos sin leer</span>
-              <span style={{ ...styles.cantidad, color: cantidad > 0 ? fuente.color : 'var(--paper-100)' }}>
-                {cantidad}
-              </span>
-            </>
-          )}
-        </div>
+      <a
+        href={obtenerUrlDestino(fuente)}
+        target="_blank"
+        rel="noreferrer"
+        className="card-face-hover"
+        style={styles.celda}
+      >
+        <img src={fuente.logo} alt="" style={styles.logo} />
+        <p style={styles.celdaLabel}>{fuente.etiqueta}</p>
+        {loading ? (
+          <span style={styles.cargando}>Cargando…</span>
+        ) : tieneError ? (
+          <span style={styles.noDisponible}>No disponible</span>
+        ) : (
+          <>
+            <span style={{ ...styles.cantidad, color: cantidad > 0 ? fuente.color : 'var(--paper-100)' }}>
+              {cantidad}
+            </span>
+            <span style={styles.subLabel}>Correos sin leer</span>
+          </>
+        )}
       </a>
     );
   };
 
+  const renderCeldaApp = (app) => (
+    <a key={app.key} href={app.href} className="card-face-hover" style={styles.celda}>
+      <img src={app.logo} alt="" style={styles.logo} />
+      <p style={styles.celdaLabel}>{app.etiqueta}</p>
+      <span style={styles.subLabel}>Abrir aplicación</span>
+    </a>
+  );
+
   return (
     <section style={styles.wrap}>
-      <h2 style={styles.h2}>Correos</h2>
-      <div style={styles.card}>
-        {renderFila('gmail', data?.gmail)}
-        <div style={styles.divider} />
-        {renderFila('outlook', data?.outlook)}
-        <p style={styles.fuenteNota}>Toca una fila para abrir tu correo (app de Outlook en Mac, Mail en iPhone).</p>
+      <h2 style={styles.h2}>Correo y otros</h2>
+      <div style={styles.grid}>
+        {renderCeldaCorreo('gmail', data?.gmail)}
+        {renderCeldaCorreo('outlook', data?.outlook)}
+        {OTRAS_APPS.map(renderCeldaApp)}
       </div>
+      <p style={styles.fuenteNota}>Correo: app de Outlook en Mac, Mail en iPhone. Teams y Meet abren directo la app o la web.</p>
     </section>
   );
 }
@@ -90,25 +119,22 @@ export default function EmailPanel() {
 const styles = {
   wrap: { marginTop: '28px' },
   h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
-  card: {
-    background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
-    borderRadius: '14px', padding: '6px 16px',
+  grid: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px',
   },
-  fila: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '14px 0', textDecoration: 'none', color: 'inherit',
+  celda: {
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '14px',
+    padding: '16px 14px', textDecoration: 'none', color: 'inherit',
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px',
   },
-  filaIzq: { display: 'flex', alignItems: 'center', gap: '10px' },
   logo: {
-    width: '22px', height: '22px', borderRadius: '5px',
-    background: '#fff', objectFit: 'contain', padding: '2px', flexShrink: 0,
+    width: '26px', height: '26px', borderRadius: '6px',
+    background: '#fff', objectFit: 'contain', padding: '3px', marginBottom: '6px',
   },
-  filaLabel: { fontSize: '0.95rem', fontWeight: 600, color: 'var(--paper-050)' },
-  filaDer: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' },
-  subLabel: { fontSize: '0.68rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  cantidad: { fontFamily: 'var(--font-mono)', fontSize: '1.4rem', fontWeight: 700, lineHeight: 1 },
-  cargando: { fontSize: '0.82rem', opacity: 0.5 },
-  noDisponible: { fontSize: '0.78rem', color: 'var(--coral-500)' },
-  divider: { height: '1px', background: 'var(--navy-700)' },
+  celdaLabel: { fontSize: '0.9rem', fontWeight: 600, color: 'var(--paper-050)', margin: 0 },
+  subLabel: { fontSize: '0.65rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  cantidad: { fontFamily: 'var(--font-mono)', fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.3 },
+  cargando: { fontSize: '0.78rem', opacity: 0.5, marginTop: '4px' },
+  noDisponible: { fontSize: '0.72rem', color: 'var(--coral-500)', marginTop: '4px' },
   fuenteNota: { fontSize: '0.65rem', opacity: 0.45, margin: '10px 0 6px' },
 };
