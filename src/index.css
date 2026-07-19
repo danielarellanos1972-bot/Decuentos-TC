@@ -154,3 +154,19 @@ a:focus-visible {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Cinta del Calendario (efeméride/cumpleaños/feriado del día): animación
+   propia y separada de la cinta del celular, para poder darle su propia
+   velocidad sin afectar la otra. Entra desde fuera del borde derecho de la
+   pantalla (100vw) y sale completamente por la izquierda (-100%, relativo
+   a su propio ancho) — un solo pase, como un ticker de noticias clásico,
+   en vez del loop continuo que usa la cinta del celular. */
+@keyframes calendario-cinta-scroll {
+  from { transform: translateX(100vw); }
+  to { transform: translateX(-100%); }
+}
+.calendario-cinta-track {
+  animation-name: calendario-cinta-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
