@@ -223,10 +223,11 @@ export default function Calendar() {
   // la efeméride del día. Si no hay nada que mostrar, la cinta no aparece.
   const itemsCinta = useMemo(() => {
     const items = [];
+    (feriadosPorDia[claveHoy] || []).forEach((f) => items.push(`🎉 Hoy es feriado: ${f.nombre}${f.pais !== 'CL' ? ` (${f.pais})` : ''}`));
     (cumpleanosPorDia[claveHoy] || []).forEach((ev) => items.push(`🎂 ${ev.titulo}`));
     efemerides.forEach((ef) => items.push(`📅 Un día como hoy, ${ef.anio}: ${ef.texto}`));
     return items;
-  }, [cumpleanosPorDia, claveHoy, efemerides]);
+  }, [feriadosPorDia, cumpleanosPorDia, claveHoy, efemerides]);
 
   const cambiarMes = (delta) => {
     let m = mesIndex0 + delta;
@@ -372,7 +373,7 @@ const styles = {
   },
   cintaTrack: {
     position: 'absolute', top: 0, left: 0, display: 'flex', alignItems: 'center', height: '100%',
-    whiteSpace: 'nowrap', animationDuration: '75s',
+    whiteSpace: 'nowrap', animationDuration: '110s',
   },
   cintaItem: { fontSize: '0.78rem', color: 'var(--gold-300)', padding: '0 28px' },
   card: {
