@@ -247,10 +247,8 @@ export default function Calendar() {
 
       {itemsCinta.length > 0 && (
         <div style={styles.cintaWrap} className="calendario-cinta">
-          <div style={styles.cintaTrack} className="ticker-track">
-            {[...itemsCinta, ...itemsCinta].map((texto, i) => (
-              <span key={i} style={styles.cintaItem}>{texto}</span>
-            ))}
+          <div style={styles.cintaTrack} className="calendario-cinta-track">
+            <span style={styles.cintaItem}>{itemsCinta.join('     •     ')}</span>
           </div>
         </div>
       )}
