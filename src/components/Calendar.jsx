@@ -370,7 +370,10 @@ const styles = {
     position: 'relative', overflow: 'hidden', height: '30px', background: 'var(--navy-900)',
     border: '1px solid var(--navy-700)', borderRadius: '8px', marginBottom: '14px',
   },
-  cintaTrack: { position: 'absolute', top: 0, left: 0, display: 'flex', alignItems: 'center', height: '100%', whiteSpace: 'nowrap' },
+  cintaTrack: {
+    position: 'absolute', top: 0, left: 0, display: 'flex', alignItems: 'center', height: '100%',
+    whiteSpace: 'nowrap', animationDuration: '75s',
+  },
   cintaItem: { fontSize: '0.78rem', color: 'var(--gold-300)', padding: '0 28px' },
   card: {
     background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
