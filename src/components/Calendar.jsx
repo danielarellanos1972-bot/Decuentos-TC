@@ -371,7 +371,7 @@ const styles = {
   },
   cintaTrack: {
     position: 'absolute', top: 0, display: 'flex', alignItems: 'center', height: '100%',
-    whiteSpace: 'nowrap', animationDuration: '180s',
+    whiteSpace: 'nowrap', animationDuration: '300s',
   },
   cintaItem: { fontSize: '0.78rem', color: 'var(--gold-300)', padding: '0 28px' },
   card: {
