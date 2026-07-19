@@ -2,10 +2,11 @@
 // Vercel Serverless Function
 // GET /api/calendar-events?year=2026&month=7
 // GET /api/calendar-events?type=holidays&year=2026&country=CL
+// GET /api/calendar-events?type=efemerides&month=7&day=19
 //
-// Dos cosas viven en este mismo archivo (en vez de uno separado) porque el
-// plan gratuito de Vercel permite un máximo de 12 funciones por proyecto, y
-// ya se estaba justo en el límite:
+// Tres cosas viven en este mismo archivo (en vez de archivos separados)
+// porque el plan gratuito de Vercel permite un máximo de 12 funciones por
+// proyecto, y ya se estaba justo en el límite:
 //
 // 1. Eventos del Google Calendar principal de Nano para el mes pedido.
 //    Diseño de un solo usuario (sin login ni base de datos): en vez de que
@@ -24,6 +25,9 @@
 //      de Chile al momento de escribir esto.
 //    - Cualquier otro país: Nager.Date — API pública gratuita, sin clave,
 //      cubre más de 100 países por código ISO de 2 letras.
+//
+// 3. Efeméride del día (?type=efemerides). "Qué pasó un día como hoy", vía
+//    la API pública de Wikipedia en español (sin clave, gratuita).
 
 const fetchConTimeout = (url, options, timeoutMs) => {
   const controller = new AbortController();
@@ -151,6 +155,39 @@ async function handlerFeriados(req, res) {
   }
 }
 
+// Efeméride del día: "qué pasó un día como hoy", vía la API pública de
+// Wikipedia (sin clave, gratuita). Se pide en español.
+async function handlerEfemerides(req, res) {
+  const mes = parseInt(req.query.month, 10);
+  const dia = parseInt(req.query.day, 10);
+  if (!mes || !dia) {
+    return res.status(400).json({ error: 'Parámetros month/day inválidos.' });
+  }
+
+  // Cambia como mucho una vez al día: se puede cachear bastante.
+  res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=86400');
+
+  try {
+    const resp = await fetchConTimeout(
+      `https://es.wikipedia.org/api/rest_v1/feed/onthisday/events/${mes}/${dia}`,
+      { headers: { 'User-Agent': 'DescuentosTC/1.0 (proyecto personal)', Accept: 'application/json' } },
+      8000
+    );
+    if (!resp.ok) {
+      return res.status(200).json({ efemerides: [], error: `Wikipedia respondió con error (${resp.status}).` });
+    }
+    const data = await resp.json();
+    const efemerides = (data.events || [])
+      .filter((ev) => ev.text)
+      .map((ev) => ({ texto: ev.text, anio: ev.year }))
+      .sort((a, b) => (b.anio || 0) - (a.anio || 0))
+      .slice(0, 8);
+    return res.status(200).json({ efemerides });
+  } catch (err) {
+    return res.status(200).json({ efemerides: [], error: err.message || 'Error obteniendo la efeméride.' });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -158,6 +195,9 @@ export default async function handler(req, res) {
 
   if (req.query.type === 'holidays') {
     return handlerFeriados(req, res);
+  }
+  if (req.query.type === 'efemerides') {
+    return handlerEfemerides(req, res);
   }
 
   return handlerEventos(req, res);
