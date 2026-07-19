@@ -157,15 +157,18 @@ a:focus-visible {
 
 /* Cinta del Calendario (efeméride/cumpleaños/feriado del día): animación
    propia y separada de la cinta del celular, para poder darle su propia
-   velocidad sin afectar la otra. Entra desde fuera del borde derecho de la
-   pantalla (100vw) y sale completamente por la izquierda (-100%, relativo
-   a su propio ancho) — un solo pase, como un ticker de noticias clásico,
-   en vez del loop continuo que usa la cinta del celular. */
+   velocidad sin afectar la otra. "left: 100%" la deja pegada justo al
+   borde derecho del recuadro (invisible, lista para entrar) — así el
+   punto de partida es relativo al tamaño real del recuadro, no de toda
+   la pantalla (que hacía que tardara demasiado en aparecer). Recorre 3
+   veces su propio ancho hacia la izquierda, suficiente para que cruce
+   completo y salga por el otro lado, sin importar cuán largo sea el texto. */
 @keyframes calendario-cinta-scroll {
-  from { transform: translateX(100vw); }
-  to { transform: translateX(-100%); }
+  from { transform: translateX(0); }
+  to { transform: translateX(-300%); }
 }
 .calendario-cinta-track {
+  left: 100%;
   animation-name: calendario-cinta-scroll;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
