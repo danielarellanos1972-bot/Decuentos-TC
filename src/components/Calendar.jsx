@@ -74,6 +74,7 @@ export default function Calendar() {
 
   const [feriadosCL, setFeriadosCL] = useState([]);
   const [feriadosExtra, setFeriadosExtra] = useState([]);
+  const [efemerides, setEfemerides] = useState([]);
   const [paisExtra, setPaisExtra] = useState(() => {
     try {
       return localStorage.getItem(PAIS_EXTRA_KEY) || '';
@@ -135,6 +136,20 @@ export default function Calendar() {
       activo = false;
     };
   }, [anio]);
+
+  // Efeméride del día: se pide una sola vez, para la fecha real de hoy (no
+  // depende de qué mes esté navegando el usuario en el calendario).
+  useEffect(() => {
+    let activo = true;
+    fetch(`/api/calendar-events?type=efemerides&month=${hoy.getMonth() + 1}&day=${hoy.getDate()}`)
+      .then((r) => r.json())
+      .then((d) => activo && setEfemerides(d.efemerides || []))
+      .catch(() => activo && setEfemerides([]));
+    return () => {
+      activo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // El país adicional es opcional; sus feriados se suman a los de Chile,
   // nunca los reemplazan.
@@ -203,6 +218,16 @@ export default function Calendar() {
   const celdas = useMemo(() => generarCeldasDelMes(anio, mesIndex0), [anio, mesIndex0]);
   const claveHoy = claveFecha(hoy);
 
+  // Contenido de la cinta: cumpleaños de hoy (si el mes que se está viendo
+  // es el actual, ya que los eventos solo se cargan del mes en pantalla) +
+  // la efeméride del día. Si no hay nada que mostrar, la cinta no aparece.
+  const itemsCinta = useMemo(() => {
+    const items = [];
+    (cumpleanosPorDia[claveHoy] || []).forEach((ev) => items.push(`🎂 ${ev.titulo}`));
+    efemerides.forEach((ef) => items.push(`📅 Un día como hoy, ${ef.anio}: ${ef.texto}`));
+    return items;
+  }, [cumpleanosPorDia, claveHoy, efemerides]);
+
   const cambiarMes = (delta) => {
     let m = mesIndex0 + delta;
     let a = anio;
@@ -218,6 +243,16 @@ export default function Calendar() {
   return (
     <section style={styles.wrap}>
       <h2 style={styles.h2}>Calendario</h2>
+
+      {itemsCinta.length > 0 && (
+        <div style={styles.cintaWrap} className="calendario-cinta">
+          <div style={styles.cintaTrack} className="ticker-track">
+            {[...itemsCinta, ...itemsCinta].map((texto, i) => (
+              <span key={i} style={styles.cintaItem}>{texto}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={styles.card}>
         <div style={styles.headerRow}>
@@ -331,6 +366,12 @@ export default function Calendar() {
 const styles = {
   wrap: { marginTop: '28px' },
   h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
+  cintaWrap: {
+    position: 'relative', overflow: 'hidden', height: '30px', background: 'var(--navy-900)',
+    border: '1px solid var(--navy-700)', borderRadius: '8px', marginBottom: '14px',
+  },
+  cintaTrack: { position: 'absolute', top: 0, left: 0, display: 'flex', alignItems: 'center', height: '100%', whiteSpace: 'nowrap' },
+  cintaItem: { fontSize: '0.78rem', color: 'var(--gold-300)', padding: '0 28px' },
   card: {
     background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
     borderRadius: '14px', padding: '18px 16px',
