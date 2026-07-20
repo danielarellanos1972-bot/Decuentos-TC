@@ -445,6 +445,17 @@ function formatearHoraCorta(iso) {
   }
 }
 
+function formatearDiaCorto(iso, i) {
+  if (i === 0) return 'Hoy';
+  try {
+    const d = new Date(`${iso}T12:00:00`);
+    const nombre = new Intl.DateTimeFormat('es-CL', { weekday: 'short' }).format(d);
+    return nombre.charAt(0).toUpperCase() + nombre.slice(1, 3);
+  } catch {
+    return '—';
+  }
+}
+
 function WeatherDetailModal({ ubicacion, onClose }) {
   const [detalle, setDetalle] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -472,83 +483,111 @@ function WeatherDetailModal({ ubicacion, onClose }) {
 
   if (!ubicacion) return null;
 
-  return createPortal(
-    <div style={styles.modalFondo} onClick={onClose}>
-      <div style={styles.modalCaja} onClick={(e) => e.stopPropagation()}>
-        <button style={styles.modalCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
+  // Rango global de temperaturas de los 10 días, para dibujar la barra
+  // min-max de cada fila con el mismo largo que usa Apple Weather (cada
+  // barra ocupa la fracción de rango que le corresponde dentro del rango
+  // completo de la semana, no su propio ancho fijo).
+  const dias = detalle?.pronostico10Dias || [];
+  const globalMin = dias.length ? Math.min(...dias.map((d) => d.min).filter((v) => v != null)) : 0;
+  const globalMax = dias.length ? Math.max(...dias.map((d) => d.max).filter((v) => v != null)) : 1;
+  const rangoTotal = Math.max(1, globalMax - globalMin);
 
-        {cargando && <p style={styles.loadingText}>Cargando detalle de {ubicacion.nombre}…</p>}
-        {errorDetalle && <p style={styles.errorText}>{errorDetalle}</p>}
+  return createPortal(
+    <div style={styles.wxFondo} onClick={onClose}>
+      <div style={styles.wxCaja} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.wxCerrar} onClick={onClose} aria-label="Cerrar">✕</button>
+
+        {cargando && <p style={styles.wxLoading}>Cargando detalle de {ubicacion.nombre}…</p>}
+        {errorDetalle && <p style={styles.wxError}>{errorDetalle}</p>}
 
         {detalle && (
           <>
-            <p style={styles.modalLugar}>{detalle.nombre}</p>
-            <div style={styles.modalTopRow}>
-              <span style={styles.modalIcono}>{detalle.icono}</span>
-              <span style={styles.modalTemp}>{detalle.temp}°</span>
-              <div>
-                <p style={styles.modalDesc}>{detalle.texto}</p>
-                <p style={styles.modalSub}>Sensación térmica {detalle.sensacion}°</p>
-              </div>
-            </div>
-
-            <div style={styles.modalStatsGrid}>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Mín / Máx</p>
-                <p style={styles.modalStatValor}>{detalle.min}° / {detalle.max}°</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Humedad</p>
-                <p style={styles.modalStatValor}>{detalle.humedad}%</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Viento</p>
-                <p style={styles.modalStatValor}>{detalle.viento} km/h {detalle.vientoDireccion}</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Nubosidad</p>
-                <p style={styles.modalStatValor}>{detalle.nubosidad}%</p>
-                </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Prob. de lluvia</p>
-                <p style={styles.modalStatValor}>{detalle.probLluviaMax}%</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Índice UV máx.</p>
-                <p style={styles.modalStatValor}>{detalle.uvMax}</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Presión</p>
-                <p style={styles.modalStatValor}>
-                  {detalle.presion} hPa{clasificarPresion(detalle.presion) ? ` (${clasificarPresion(detalle.presion)})` : ''}
-                </p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Amanecer</p>
-                <p style={styles.modalStatValor}>{formatearHoraCorta(detalle.amanecer)}</p>
-              </div>
-              <div style={styles.modalStat}>
-                <p style={styles.modalStatLabel}>Atardecer</p>
-                <p style={styles.modalStatValor}>{formatearHoraCorta(detalle.atardecer)}</p>
-              </div>
+            <div style={styles.wxHero}>
+              <p style={styles.wxLugar}>{detalle.nombre}</p>
+              <p style={styles.wxTemp}>{detalle.temp}°</p>
+              <p style={styles.wxDesc}>{detalle.texto}</p>
+              <p style={styles.wxMinMax}>Máxima: {detalle.max}°  Mínima: {detalle.min}°</p>
             </div>
 
             {detalle.proximasHoras?.length > 0 && (
-              <>
-                <p style={styles.modalHorasTitulo}>Próximas horas</p>
-                <div style={styles.modalHorasFila}>
+              <div style={styles.wxCard}>
+                <div style={styles.wxHorasFila}>
                   {detalle.proximasHoras.map((h, i) => (
-                    <div key={i} style={styles.modalHoraItem}>
-                      <p style={styles.modalHoraTexto}>{formatearHoraCorta(h.hora)}</p>
-                      <p style={styles.modalHoraIcono}>{h.icono}</p>
-                      <p style={styles.modalHoraTemp}>{h.temp}°</p>
+                    <div key={i} style={styles.wxHoraItem}>
+                      <p style={styles.wxHoraTexto}>{i === 0 ? 'Ahora' : formatearHoraCorta(h.hora)}</p>
+                      <p style={styles.wxHoraIcono}>{h.icono}</p>
+                      {h.probLluvia != null && h.probLluvia >= 25 && (
+                        <p style={styles.wxHoraProb}>{h.probLluvia}%</p>
+                      )}
+                      <p style={styles.wxHoraTemp}>{h.temp}°</p>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
 
-            <p style={styles.fuente}>Fuente: Open-Meteo.</p>
+            {dias.length > 0 && (
+              <div style={styles.wxCard}>
+                <p style={styles.wxCardTitulo}>Pronóstico para {dias.length} días</p>
+                {dias.map((d, i) => {
+                  const inicioPct = ((d.min - globalMin) / rangoTotal) * 100;
+                  const anchoPct = Math.max(6, ((d.max - d.min) / rangoTotal) * 100);
+                  return (
+                    <div key={d.fecha} style={styles.wxDiaFila}>
+                      <span style={styles.wxDiaNombre}>{formatearDiaCorto(d.fecha, i)}</span>
+                      <span style={styles.wxDiaIcono}>{d.icono}</span>
+                      <span style={styles.wxDiaProb}>{d.probLluvia != null && d.probLluvia >= 20 ? `${d.probLluvia}%` : ''}</span>
+                      <span style={styles.wxDiaMin}>{d.min}°</span>
+                      <span style={styles.wxDiaBarraPista}>
+                        <span style={{ ...styles.wxDiaBarra, left: `${inicioPct}%`, width: `${anchoPct}%` }} />
+                      </span>
+                      <span style={styles.wxDiaMax}>{d.max}°</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={styles.wxGrid}>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>☀️ Índice UV</p>
+                <p style={styles.wxTileValor}>{detalle.uvMax ?? '—'}</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>🌅 Amanecer</p>
+                <p style={styles.wxTileValor}>{formatearHoraCorta(detalle.amanecer)}</p>
+                <p style={styles.wxTileNota}>Atardecer: {formatearHoraCorta(detalle.atardecer)}</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>🧭 Viento</p>
+                <p style={styles.wxTileValor}>{detalle.viento} km/h</p>
+                <p style={styles.wxTileNota}>Dirección: {detalle.vientoDireccion || '—'}</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>🌡️ Sensación</p>
+                <p style={styles.wxTileValor}>{detalle.sensacion}°</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>💧 Humedad</p>
+                <p style={styles.wxTileValor}>{detalle.humedad}%</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>👁️ Visibilidad</p>
+                <p style={styles.wxTileValor}>{detalle.visibilidadKm != null ? `${detalle.visibilidadKm} km` : '—'}</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>☔ Precipitación</p>
+                <p style={styles.wxTileValor}>{detalle.precipitacion ?? 0} mm</p>
+                <p style={styles.wxTileNota}>Prob. máx. hoy: {detalle.probLluviaMax}%</p>
+              </div>
+              <div style={styles.wxTile}>
+                <p style={styles.wxTileLabel}>⏱️ Presión</p>
+                <p style={styles.wxTileValor}>{detalle.presion} hPa</p>
+                <p style={styles.wxTileNota}>{clasificarPresion(detalle.presion) || 'Normal'}</p>
+              </div>
+            </div>
+
+            <p style={styles.wxFuente}>Fuente: Open-Meteo.</p>
           </>
         )}
       </div>
@@ -1259,4 +1298,69 @@ const styles = {
   barometroEtiquetaSvg: {
     fontSize: '13px', fontFamily: 'var(--font-display)', fill: 'var(--paper-100)', opacity: 0.8,
   },
+
+  wxFondo: {
+    position: 'fixed', inset: 0, background: 'rgba(5,10,15,0.72)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 1000, padding: '20px',
+  },
+  wxCaja: {
+    position: 'relative', background: '#0E1524', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '20px', padding: '30px 20px 20px', width: '100%', maxWidth: '420px',
+    maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+    color: '#F2F5FA', fontFamily: 'var(--font-body)',
+  },
+  wxCerrar: {
+    position: 'absolute', top: '14px', right: '14px', background: 'rgba(255,255,255,0.1)',
+    border: 'none', color: '#F2F5FA', borderRadius: '50%',
+    width: '28px', height: '28px', fontSize: '0.85rem', cursor: 'pointer', zIndex: 1,
+  },
+  wxLoading: { fontSize: '0.85rem', color: '#B7C0D1' },
+  wxError: { fontSize: '0.85rem', color: '#F09595' },
+  wxHero: { textAlign: 'center', marginBottom: '22px' },
+  wxLugar: { fontSize: '1.05rem', fontWeight: 500, margin: '0 0 2px' },
+  wxTemp: { fontFamily: 'var(--font-body)', fontSize: '4.2rem', fontWeight: 200, margin: '0', lineHeight: 1 },
+  wxDesc: { fontSize: '0.95rem', color: '#C7CEDA', margin: '2px 0 0' },
+  wxMinMax: { fontSize: '0.85rem', color: '#C7CEDA', margin: '4px 0 0' },
+  wxCard: {
+    background: 'rgba(255,255,255,0.06)', borderRadius: '14px', padding: '14px', marginBottom: '12px',
+  },
+  wxCardTitulo: {
+    fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#9AA4B5',
+    margin: '0 0 10px', fontWeight: 600,
+  },
+  wxHorasFila: { display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '2px' },
+  wxHoraItem: { flexShrink: 0, textAlign: 'center', minWidth: '38px' },
+  wxHoraTexto: { fontSize: '0.72rem', color: '#C7CEDA', margin: '0 0 8px' },
+  wxHoraIcono: { fontSize: '1.3rem', margin: '0 0 6px' },
+  wxHoraProb: { fontSize: '0.66rem', color: '#7FB8E0', margin: '0 0 6px', fontWeight: 600 },
+  wxHoraTemp: { fontSize: '0.9rem', fontWeight: 500, margin: 0 },
+  wxDiaFila: {
+    display: 'grid', gridTemplateColumns: '38px 26px 34px 22px 1fr 22px',
+    alignItems: 'center', gap: '8px', padding: '7px 0',
+    borderTop: '1px solid rgba(255,255,255,0.08)',
+  },
+  wxDiaNombre: { fontSize: '0.85rem', fontWeight: 500 },
+  wxDiaIcono: { fontSize: '1.05rem', textAlign: 'center' },
+  wxDiaProb: { fontSize: '0.66rem', color: '#7FB8E0', fontWeight: 600, textAlign: 'center' },
+  wxDiaMin: { fontSize: '0.82rem', color: '#9AA4B5', textAlign: 'right' },
+  wxDiaMax: { fontSize: '0.82rem', fontWeight: 500, textAlign: 'right' },
+  wxDiaBarraPista: {
+    position: 'relative', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.1)',
+  },
+  wxDiaBarra: {
+    position: 'absolute', top: 0, bottom: 0, borderRadius: '2px',
+    background: 'linear-gradient(90deg, #4A8FD6, #E0B84A, #D6684A)',
+  },
+  wxGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
+  wxTile: {
+    background: 'rgba(255,255,255,0.06)', borderRadius: '14px', padding: '12px 14px', minHeight: '84px',
+  },
+  wxTileLabel: {
+    fontSize: '0.66rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#9AA4B5',
+    margin: '0 0 8px', fontWeight: 600,
+  },
+  wxTileValor: { fontSize: '1.4rem', fontWeight: 500, margin: 0 },
+  wxTileNota: { fontSize: '0.72rem', color: '#9AA4B5', margin: '4px 0 0', lineHeight: 1.35 },
+  wxFuente: { fontSize: '0.68rem', color: '#7A8399', margin: '14px 0 0', textAlign: 'center' },
 };
