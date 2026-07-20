@@ -20,8 +20,19 @@ function esSpotify(sitio) {
   return /spotify/i.test(sitio.nombre) || /spotify\.com/i.test(sitio.url);
 }
 
+// Mismo criterio que Spotify: WhatsApp Desktop registra el esquema oficial
+// "whatsapp://" al instalarse (Windows y Mac). Si la app está instalada, el
+// sistema operativo la abre directo; si no, el navegador simplemente no
+// hace nada — igual de honesto que el caso de Spotify, sin JavaScript de
+// respaldo que redirija a la web.
+function esWhatsApp(sitio) {
+  return /whatsapp/i.test(sitio.nombre) || /whatsapp\.com/i.test(sitio.url);
+}
+
 function obtenerHref(sitio) {
-  return esSpotify(sitio) ? 'spotify:preferences' : sitio.url;
+  if (esSpotify(sitio)) return 'spotify:preferences';
+  if (esWhatsApp(sitio)) return 'whatsapp://';
+  return sitio.url;
 }
 
 export default function WebLinks() {
