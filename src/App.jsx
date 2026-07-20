@@ -179,8 +179,8 @@ const styles = {
   },
   header: { marginBottom: '26px' },
   eyebrow: {
-    fontSize: '1.5rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em',
-    color: 'var(--gold-300)', margin: '0 0 10px', fontWeight: 700, fontFamily: 'var(--font-display)',
+    fontSize: '1.75rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em',
+    color: 'var(--gold-500)', margin: '0 0 10px', fontWeight: 700, fontFamily: 'var(--font-display)',
   },
   h1: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   sub: { fontSize: '0.92rem', opacity: 0.7, margin: 0, lineHeight: 1.5 },
