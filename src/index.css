@@ -1,21 +1,21 @@
 :root {
-  /* Paleta: mundo de tarjetas y cupones — petróleo profundo + dorado cupón + verde vigente + coral alerta */
-  --navy-950: #0A1F2E;
-  --navy-900: #0F2A3D;
-  --navy-800: #163A52;
-  --navy-700: #204B6B;
-  --gold-500: #D4A24C;
-  --gold-300: #E8C583;
-  --mint-500: #3FA796;
-  --mint-300: #7FCBBD;
-  --coral-500: #E8604C;
-  --paper-100: #F4EFE6;
-  --paper-050: #FAF7F1;
+  /* Paleta: Durazno y Cielo — pastel claro, cálido y suave */
+  --navy-950: #FDF4EE;
+  --navy-900: #FFFFFF;
+  --navy-800: #FBEEE1;
+  --navy-700: #F0DCC9;
+  --gold-500: #E8B168;
+  --gold-300: #F3D19E;
+  --mint-500: #6FA8C9;
+  --mint-300: #A9CFE3;
+  --coral-500: #E17A5F;
+  --paper-100: #55402E;
+  --paper-050: #3D2E22;
   --ink-900: #12181C;
   --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
-  color-scheme: dark;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body, #root {
