@@ -79,7 +79,7 @@ export default function Calculator() {
               return (
                 <div key={m.key} style={styles.resultCard}>
                   <p style={styles.resultLabel}>
-                    {m.flag} {m.label}
+                    <span style={{ fontSize: '1.4em' }}>{m.flag}</span> {m.label}
                   </p>
                   <p style={styles.resultValue}>{fmt(resultado)}</p>
                 </div>
