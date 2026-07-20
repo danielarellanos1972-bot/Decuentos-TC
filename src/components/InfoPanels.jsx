@@ -623,10 +623,10 @@ function BarometroWidget() {
   const puntaY = cy + radioAguja * Math.sin(thetaRad);
 
   const estado = clasificarPresion(presion) || 'Normal';
-  let colorEstado = 'var(--gold-300)';
+  let colorEstado = 'var(--gold-500)';
   if (presion != null) {
-    if (presion < 1000) colorEstado = 'var(--coral-500)';
-    else if (presion > 1020) colorEstado = 'var(--mint-300)';
+    if (presion < 1000) colorEstado = 'var(--cal-red)';
+    else if (presion > 1020) colorEstado = 'var(--cal-green)';
   }
 
   return (
@@ -638,11 +638,11 @@ function BarometroWidget() {
         <svg viewBox="0 0 200 128" style={styles.barometroSvg}>
           <path
             d={`M ${cx - radioArco} ${cy} A ${radioArco} ${radioArco} 0 0 1 ${cx} ${cy - radioArco}`}
-            fill="none" stroke="var(--coral-500)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
+            fill="none" stroke="var(--cal-red)" strokeWidth="10" strokeLinecap="round" opacity="0.85"
           />
           <path
             d={`M ${cx} ${cy - radioArco} A ${radioArco} ${radioArco} 0 0 1 ${cx + radioArco} ${cy}`}
-            fill="none" stroke="var(--mint-300)" strokeWidth="10" strokeLinecap="round" opacity="0.5"
+            fill="none" stroke="var(--cal-green)" strokeWidth="10" strokeLinecap="round" opacity="0.85"
           />
           <text x={cx - radioArco} y={cy + 16} textAnchor="middle" style={styles.barometroEtiquetaSvg}>Lluvia</text>
           <text x={cx + radioArco} y={cy + 16} textAnchor="middle" style={styles.barometroEtiquetaSvg}>Sol</text>
@@ -1012,8 +1012,9 @@ const styles = {
   },
   panelTitle: {
     fontFamily: 'var(--font-display)',
-    fontSize: '1rem',
-    color: 'var(--gold-300)',
+    fontSize: '1.2rem',
+    fontWeight: 700,
+    color: 'var(--gold-500)',
     margin: '0 0 10px',
     textTransform: 'capitalize',
   },
@@ -1063,8 +1064,9 @@ const styles = {
   },
   rowSub: {
     fontFamily: 'var(--font-mono)',
-    fontSize: '0.7rem',
-    color: 'var(--mint-300)',
+    fontSize: '0.72rem',
+    fontWeight: 600,
+    color: 'var(--paper-100)',
   },
   loadingText: {
     fontSize: '0.78rem',
