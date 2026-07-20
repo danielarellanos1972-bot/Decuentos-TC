@@ -94,6 +94,22 @@ export default async function handler(req, res) {
       };
     });
 
+    // Visibilidad actual: Open-Meteo la entrega por hora (metros), tomamos
+    // el mismo índice "ahora" que usamos para las próximas horas.
+    const visibilidadM = data?.hourly?.visibility?.[desde];
+    const visibilidadKm = visibilidadM != null ? Math.round(visibilidadM / 1000) : null;
+
+    // Pronóstico de 10 días: mismo formato que "proximasHoras" pero uno por
+    // día, para la franja horizontal estilo Apple Weather.
+    const diasFecha = data?.daily?.time || [];
+    const pronostico10Dias = diasFecha.map((fecha, i) => ({
+      fecha,
+      icono: (CODIGO_CLIMA[data.daily.weather_code?.[i]] || {}).icono || '🌡️',
+      min: data.daily.temperature_2m_min?.[i] != null ? Math.round(data.daily.temperature_2m_min[i]) : null,
+      max: data.daily.temperature_2m_max?.[i] != null ? Math.round(data.daily.temperature_2m_max[i]) : null,
+      probLluvia: data.daily.precipitation_probability_max?.[i] ?? null,
+    }));
+
     return res.status(200).json({
       nombre,
       temp: data?.current?.temperature_2m != null ? Math.round(data.current.temperature_2m) : null,
@@ -112,7 +128,9 @@ export default async function handler(req, res) {
       probLluviaMax: data?.daily?.precipitation_probability_max?.[0] ?? null,
       amanecer: data?.daily?.sunrise?.[0] || null,
       atardecer: data?.daily?.sunset?.[0] || null,
+      visibilidadKm,
       proximasHoras,
+      pronostico10Dias,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error obteniendo el detalle del clima.' });
