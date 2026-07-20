@@ -1,17 +1,17 @@
 :root {
-  /* Paleta: Banca clara — blanco/gris azulado, acento navy único */
-  --navy-950: #F7F8FA;
+  /* Paleta: Durazno sin celeste — misma base cálida, acento burdeos */
+  --navy-950: #FDF4EE;
   --navy-900: #FFFFFF;
-  --navy-800: #EEF1F5;
-  --navy-700: #DCE1E8;
-  --gold-500: #2B4C6F;
-  --gold-300: #6E8CAB;
-  --mint-500: #2B4C6F;
-  --mint-300: #6E8CAB;
-  --coral-500: #B34747;
-  --paper-100: #3A4453;
-  --paper-050: #232B36;
-  --ink-900: #1B222B;
+  --navy-800: #FBEEE1;
+  --navy-700: #F0DCC9;
+  --gold-500: #8C3A3A;
+  --gold-300: #C08787;
+  --mint-500: #8C3A3A;
+  --mint-300: #C08787;
+  --coral-500: #B5602E;
+  --paper-100: #55402E;
+  --paper-050: #3D2E22;
+  --ink-900: #12181C;
   --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
