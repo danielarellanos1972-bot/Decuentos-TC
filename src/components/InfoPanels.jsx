@@ -254,26 +254,26 @@ export function DateFXPanel() {
       {data && (
         <div style={styles.rowGrid}>
           <Row
-            label="🇨🇱 UF"
+            label={<><span style={{ fontSize: '1.4em' }}>🇨🇱</span> UF</>}
             value={`$${fmtCLP(data.uf?.valor)}`}
             onClick={() => setHistorialAbierto({ label: 'UF', fuente: 'mindicador', codigo: 'uf' })}
           />
           <Row
-            label="🇨🇱 UTM"
+            label={<><span style={{ fontSize: '1.4em' }}>🇨🇱</span> UTM</>}
             value={`$${fmtCLP(data.utm?.valor)}`}
             onClick={() => setHistorialAbierto({ label: 'UTM', fuente: 'mindicador', codigo: 'utm' })}
           />
           <Row
-            label="🇺🇸 Dólar (USD)"
+            label={<><span style={{ fontSize: '1.4em' }}>🇺🇸</span> Dólar (USD)</>}
             value={`$${fmtCLP(data.usd?.valor)}`}
             onClick={() => setHistorialAbierto({ label: 'Dólar (USD)', fuente: 'mindicador', codigo: 'dolar' })}
           />
           <Row
-            label="🇪🇺 Euro"
+            label={<><span style={{ fontSize: '1.4em' }}>🇪🇺</span> Euro</>}
             value={data.eur?.valor ? `$${fmtCLP(data.eur.valor)}` : 'No disponible'}
             onClick={() => setHistorialAbierto({ label: 'Euro', fuente: 'mindicador', codigo: 'euro' })}
           />
-          <Row label="🇨🇦 Dólar Can. (CAD)" value={data.cad?.valor ? `$${fmtCLP(data.cad.valor)}` : 'No disponible'} />
+          <Row label={<><span style={{ fontSize: '1.4em' }}>🇨🇦</span> Dólar Can. (CAD)</>} value={data.cad?.valor ? `$${fmtCLP(data.cad.valor)}` : 'No disponible'} />
         </div>
       )}
       {historialAbierto && (
