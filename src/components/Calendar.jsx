@@ -380,11 +380,11 @@ const styles = {
   },
   headerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' },
   navBtn: {
-    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--ink-900)', fontSize: '1.15rem', fontWeight: 700,
     borderRadius: '8px', width: '32px', height: '32px', fontSize: '1.1rem', lineHeight: 1,
   },
   mesTitulo: {
-    fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--gold-300)',
+    fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--gold-500)',
     margin: 0, textTransform: 'capitalize',
   },
   loadingText: { fontSize: '0.78rem', opacity: 0.6, margin: '0 0 10px' },
@@ -400,8 +400,8 @@ const styles = {
     borderRadius: '8px', color: 'var(--paper-100)', fontSize: '0.82rem', display: 'flex',
     alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
   },
-  celdaCumpleanos: { border: '1px solid var(--mint-300)', color: 'var(--mint-300)', fontWeight: 700 },
-  celdaFeriado: { border: '1px solid var(--coral-500)', color: 'var(--coral-500)', fontWeight: 700 },
+  celdaCumpleanos: { border: '1px solid var(--cal-green)', color: 'var(--cal-green)', fontWeight: 700 },
+  celdaFeriado: { border: '1px solid var(--cal-red)', color: 'var(--cal-red)', fontWeight: 700 },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
   puntosWrap: {
@@ -426,8 +426,8 @@ const styles = {
     fontSize: '0.9rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 4px', textTransform: 'capitalize',
   },
   feriadoBanner: {
-    background: 'rgba(232,96,76,0.15)', border: '1px solid var(--coral-500)', borderRadius: '8px',
-    padding: '8px 10px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--coral-500)',
+    background: 'rgba(168,50,50,0.12)', border: '1px solid var(--cal-red)', borderRadius: '8px',
+    padding: '8px 10px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--cal-red)',
   },
   sinEventos: { fontSize: '0.82rem', opacity: 0.6, margin: 0 },
   eventoItem: {
