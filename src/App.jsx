@@ -179,7 +179,7 @@ const styles = {
   },
   header: { marginBottom: '26px' },
   eyebrow: {
-    fontSize: '1.75rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em',
+    fontSize: '2.1rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em',
     color: 'var(--gold-500)', margin: '0 0 10px', fontWeight: 700, fontFamily: 'var(--font-display)',
   },
   h1: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
