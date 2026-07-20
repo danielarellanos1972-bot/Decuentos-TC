@@ -31,7 +31,7 @@ function esWhatsApp(sitio) {
 
 function obtenerHref(sitio) {
   if (esSpotify(sitio)) return 'spotify:preferences';
-  if (esWhatsApp(sitio)) return 'whatsapp://';
+  if (esWhatsApp(sitio)) return 'whatsapp://send';
   return sitio.url;
 }
 
