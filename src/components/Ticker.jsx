@@ -84,9 +84,10 @@ const styles = {
   item: {
     display: 'inline-block',
     padding: '0 22px',
-    fontSize: '0.78rem',
+    fontSize: '0.9rem',
+    fontWeight: 600,
     fontFamily: 'var(--font-mono)',
-    color: 'var(--paper-050)',
+    color: 'var(--ink-900)',
     whiteSpace: 'nowrap',
   },
 };
