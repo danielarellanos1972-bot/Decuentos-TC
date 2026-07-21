@@ -20,7 +20,15 @@ const fetchConTimeout = (url, options, timeoutMs) => {
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
-async function getAccessToken() {
+// El refresh_token solo puede renovarse pidiendo scopes que ya estén
+// dentro de lo que el usuario autorizó originalmente al crearlo — pedir de
+// más hace que Microsoft rechace la renovación completa (hasta la lectura
+// se cae). Por eso el scope es un parámetro: la lectura (GET) sigue
+// pidiendo el scope de solo-lectura que ya tienes autorizado, y solo la
+// creación de eventos (POST) intenta pedir el de escritura — que va a
+// fallar con un error claro hasta que reautorices tu cuenta con permiso
+// de escritura (ese es el paso pendiente que quedó para después).
+async function getAccessToken(scope = 'https://graph.microsoft.com/Calendars.Read offline_access') {
   const { MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REFRESH_TOKEN } = process.env;
   if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REFRESH_TOKEN) {
     throw new Error('Faltan variables de entorno de Outlook (MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET / MICROSOFT_REFRESH_TOKEN).');
@@ -35,7 +43,7 @@ async function getAccessToken() {
       client_secret: MICROSOFT_CLIENT_SECRET,
       refresh_token: MICROSOFT_REFRESH_TOKEN,
       grant_type: 'refresh_token',
-      scope: 'https://graph.microsoft.com/Calendars.ReadWrite offline_access',
+      scope,
     }),
   }, 8000);
   if (!resp.ok) {
@@ -53,7 +61,7 @@ async function handlerCrearEvento(req, res) {
   }
 
   try {
-    const accessToken = await getAccessToken();
+    const accessToken = await getAccessToken('https://graph.microsoft.com/Calendars.ReadWrite offline_access');
 
     const attendees = (Array.isArray(destinatarios) ? destinatarios : [])
       .map((email) => String(email).trim())
