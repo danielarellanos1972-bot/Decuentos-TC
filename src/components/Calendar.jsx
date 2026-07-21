@@ -578,8 +578,8 @@ const styles = {
     borderRadius: '8px', color: 'var(--paper-100)', fontSize: '0.82rem', display: 'flex',
     alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
   },
-  celdaCumpleanos: { border: '1px solid var(--mint-300)', color: 'var(--mint-300)', fontWeight: 700 },
-  celdaFeriado: { border: '1px solid var(--coral-500)', color: 'var(--coral-500)', fontWeight: 700 },
+  celdaCumpleanos: { border: '1px solid var(--cal-green)', color: 'var(--cal-green)', fontWeight: 700 },
+  celdaFeriado: { border: '1px solid var(--cal-red)', color: 'var(--cal-red)', fontWeight: 700 },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
   puntosWrap: {
