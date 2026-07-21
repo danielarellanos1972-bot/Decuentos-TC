@@ -111,6 +111,65 @@ async function handlerEventos(req, res) {
   }
 }
 
+async function handlerCrearEvento(req, res) {
+  const { titulo, fecha, horaInicio, horaFin, todoElDia, lugar, descripcion, destinatarios } = req.body || {};
+  if (!titulo || !fecha) {
+    return res.status(400).json({ error: 'Falta título o fecha.' });
+  }
+
+  try {
+    const accessToken = await getAccessToken();
+
+    const attendees = (Array.isArray(destinatarios) ? destinatarios : [])
+      .map((email) => String(email).trim())
+      .filter(Boolean)
+      .map((email) => ({ email }));
+
+    const body = {
+      summary: titulo,
+      location: lugar || undefined,
+      description: descripcion || undefined,
+      attendees: attendees.length ? attendees : undefined,
+    };
+
+    if (todoElDia) {
+      body.start = { date: fecha };
+      // Google exige que el "end" de un evento de todo el día sea el día
+      // calendario siguiente (el rango es exclusivo).
+      const fin = new Date(`${fecha}T00:00:00`);
+      fin.setDate(fin.getDate() + 1);
+      body.end = { date: fin.toISOString().slice(0, 10) };
+    } else {
+      body.start = { dateTime: `${fecha}T${horaInicio || '09:00'}:00`, timeZone: 'America/Santiago' };
+      body.end = { dateTime: `${fecha}T${horaFin || horaInicio || '10:00'}:00`, timeZone: 'America/Santiago' };
+    }
+
+    // sendUpdates=all: si hay destinatarios, Google les manda la invitación
+    // por correo automáticamente (no hay que armar el email a mano).
+    const params = new URLSearchParams({ sendUpdates: attendees.length ? 'all' : 'none' });
+
+    const resp = await fetchConTimeout(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      8000
+    );
+
+    if (!resp.ok) {
+      const detalle = await resp.text().catch(() => '');
+      return res.status(502).json({ error: `Google Calendar respondió con error (${resp.status}).`, detalle });
+    }
+
+    const data = await resp.json();
+    return res.status(200).json({ ok: true, id: data.id, link: data.htmlLink });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error creando el evento en Google Calendar.' });
+  }
+}
+
 const HEADERS_FERIADOS = { 'User-Agent': 'Mozilla/5.0 (compatible; DescuentosTC/1.0)', Accept: 'application/json' };
 
 async function feriadosChile(year) {
@@ -189,6 +248,10 @@ async function handlerEfemerides(req, res) {
 }
 
 export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    return handlerCrearEvento(req, res);
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
