@@ -75,6 +75,79 @@ export default function Calendar() {
   const [feriadosCL, setFeriadosCL] = useState([]);
   const [feriadosExtra, setFeriadosExtra] = useState([]);
   const [efemerides, setEfemerides] = useState([]);
+  const [recarga, setRecarga] = useState(0);
+
+  const [mostrarFormNuevo, setMostrarFormNuevo] = useState(false);
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [nuevoFecha, setNuevoFecha] = useState(diaSeleccionado);
+  const [nuevoTodoElDia, setNuevoTodoElDia] = useState(false);
+  const [nuevoHoraInicio, setNuevoHoraInicio] = useState('09:00');
+  const [nuevoHoraFin, setNuevoHoraFin] = useState('10:00');
+  const [nuevoLugar, setNuevoLugar] = useState('');
+  const [nuevoDestinatarios, setNuevoDestinatarios] = useState('');
+  const [creandoEvento, setCreandoEvento] = useState(false);
+  const [resultadoCreacion, setResultadoCreacion] = useState(null);
+
+  async function crearEventoEnAmbos() {
+    if (!nuevoTitulo.trim() || !nuevoFecha) {
+      setResultadoCreacion({ tipo: 'error', texto: 'Falta el título o la fecha.' });
+      return;
+    }
+    setCreandoEvento(true);
+    setResultadoCreacion(null);
+
+    const destinatarios = nuevoDestinatarios
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const payload = {
+      titulo: nuevoTitulo.trim(),
+      fecha: nuevoFecha,
+      todoElDia: nuevoTodoElDia,
+      horaInicio: nuevoHoraInicio,
+      horaFin: nuevoHoraFin,
+      lugar: nuevoLugar.trim() || undefined,
+      destinatarios,
+    };
+
+    const [google, outlook] = await Promise.allSettled([
+      fetch('/api/calendar-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json()),
+      fetch('/api/outlook-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json()),
+    ]);
+
+    const okGoogle = google.status === 'fulfilled' && google.value?.ok;
+    const okOutlook = outlook.status === 'fulfilled' && outlook.value?.ok;
+
+    if (okGoogle && okOutlook) {
+      setResultadoCreacion({ tipo: 'ok', texto: 'Evento creado en Google Calendar y Outlook.' + (destinatarios.length ? ' Invitación enviada.' : '') });
+      setNuevoTitulo('');
+      setNuevoLugar('');
+      setNuevoDestinatarios('');
+      setMostrarFormNuevo(false);
+      setRecarga((n) => n + 1);
+    } else if (okGoogle || okOutlook) {
+      const cual = okGoogle ? 'Google Calendar' : 'Outlook';
+      const falloMsg = okGoogle
+        ? (outlook.value?.error || outlook.reason?.message || 'error desconocido')
+        : (google.value?.error || google.reason?.message || 'error desconocido');
+      setResultadoCreacion({ tipo: 'parcial', texto: `Se creó solo en ${cual}. El otro falló: ${falloMsg}` });
+      setRecarga((n) => n + 1);
+    } else {
+      const err1 = google.value?.error || google.reason?.message || 'error desconocido';
+      const err2 = outlook.value?.error || outlook.reason?.message || 'error desconocido';
+      setResultadoCreacion({ tipo: 'error', texto: `No se pudo crear en ninguno. Google: ${err1} · Outlook: ${err2}` });
+    }
+    setCreandoEvento(false);
+  }
   const [paisExtra, setPaisExtra] = useState(() => {
     try {
       return localStorage.getItem(PAIS_EXTRA_KEY) || '';
@@ -122,7 +195,7 @@ export default function Calendar() {
     return () => {
       activo = false;
     };
-  }, [anio, mesIndex0]);
+  }, [anio, mesIndex0, recarga]);
 
   // Los feriados de Chile se cargan siempre, una vez por año (no dependen
   // del mes que se esté viendo).
@@ -305,6 +378,111 @@ export default function Calendar() {
           })}
         </div>
 
+        <div style={styles.nuevoEventoWrap}>
+          {!mostrarFormNuevo ? (
+            <button
+              style={styles.nuevoEventoBtn}
+              onClick={() => {
+                setNuevoFecha(diaSeleccionado);
+                setMostrarFormNuevo(true);
+                setResultadoCreacion(null);
+              }}
+            >
+              + Nuevo evento
+            </button>
+          ) : (
+            <div style={styles.nuevoEventoCaja}>
+              <p style={styles.nuevoEventoTitulo}>Nuevo evento — se crea en Google y Outlook</p>
+
+              <input
+                style={styles.nuevoEventoInput}
+                type="text"
+                placeholder="Título"
+                value={nuevoTitulo}
+                onChange={(e) => setNuevoTitulo(e.target.value)}
+              />
+
+              <div style={styles.nuevoEventoFila}>
+                <input
+                  style={{ ...styles.nuevoEventoInput, flex: 1 }}
+                  type="date"
+                  value={nuevoFecha}
+                  onChange={(e) => setNuevoFecha(e.target.value)}
+                />
+                <label style={styles.nuevoEventoCheckLabel}>
+                  <input
+                    type="checkbox"
+                    checked={nuevoTodoElDia}
+                    onChange={(e) => setNuevoTodoElDia(e.target.checked)}
+                  />
+                  Todo el día
+                </label>
+              </div>
+
+              {!nuevoTodoElDia && (
+                <div style={styles.nuevoEventoFila}>
+                  <input
+                    style={{ ...styles.nuevoEventoInput, flex: 1 }}
+                    type="time"
+                    value={nuevoHoraInicio}
+                    onChange={(e) => setNuevoHoraInicio(e.target.value)}
+                  />
+                  <input
+                    style={{ ...styles.nuevoEventoInput, flex: 1 }}
+                    type="time"
+                    value={nuevoHoraFin}
+                    onChange={(e) => setNuevoHoraFin(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <input
+                style={styles.nuevoEventoInput}
+                type="text"
+                placeholder="Lugar (opcional)"
+                value={nuevoLugar}
+                onChange={(e) => setNuevoLugar(e.target.value)}
+              />
+
+              <input
+                style={styles.nuevoEventoInput}
+                type="text"
+                placeholder="Destinatarios, separados por coma (opcional)"
+                value={nuevoDestinatarios}
+                onChange={(e) => setNuevoDestinatarios(e.target.value)}
+              />
+
+              {resultadoCreacion && (
+                <p
+                  style={{
+                    ...styles.nuevoEventoResultado,
+                    color: resultadoCreacion.tipo === 'ok' ? 'var(--cal-green)' : 'var(--cal-red)',
+                  }}
+                >
+                  {resultadoCreacion.texto}
+                </p>
+              )}
+
+              <div style={styles.nuevoEventoFila}>
+                <button
+                  style={styles.nuevoEventoBtnCancelar}
+                  onClick={() => { setMostrarFormNuevo(false); setResultadoCreacion(null); }}
+                  disabled={creandoEvento}
+                >
+                  Cancelar
+                </button>
+                <button
+                  style={styles.nuevoEventoBtnCrear}
+                  onClick={crearEventoEnAmbos}
+                  disabled={creandoEvento}
+                >
+                  {creandoEvento ? 'Creando…' : 'Crear evento'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div style={styles.paisExtraRow}>
           <span style={styles.paisExtraLabel}>+ Feriados de otro país:</span>
           <select
@@ -380,11 +558,11 @@ const styles = {
   },
   headerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' },
   navBtn: {
-    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--ink-900)', fontSize: '1.15rem', fontWeight: 700,
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
     borderRadius: '8px', width: '32px', height: '32px', fontSize: '1.1rem', lineHeight: 1,
   },
   mesTitulo: {
-    fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--gold-500)',
+    fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--gold-300)',
     margin: 0, textTransform: 'capitalize',
   },
   loadingText: { fontSize: '0.78rem', opacity: 0.6, margin: '0 0 10px' },
@@ -400,8 +578,8 @@ const styles = {
     borderRadius: '8px', color: 'var(--paper-100)', fontSize: '0.82rem', display: 'flex',
     alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
   },
-  celdaCumpleanos: { border: '1px solid var(--cal-green)', color: 'var(--cal-green)', fontWeight: 700 },
-  celdaFeriado: { border: '1px solid var(--cal-red)', color: 'var(--cal-red)', fontWeight: 700 },
+  celdaCumpleanos: { border: '1px solid var(--mint-300)', color: 'var(--mint-300)', fontWeight: 700 },
+  celdaFeriado: { border: '1px solid var(--coral-500)', color: 'var(--coral-500)', fontWeight: 700 },
   celdaHoy: { border: '1px solid var(--gold-500)' },
   celdaSeleccionada: { background: 'var(--gold-500)', color: 'var(--navy-950)', fontWeight: 700 },
   puntosWrap: {
@@ -409,6 +587,38 @@ const styles = {
     display: 'flex', gap: '2px',
   },
   puntoEvento: { width: '4px', height: '4px', borderRadius: '50%' },
+  nuevoEventoWrap: {
+    marginBottom: '14px', borderTop: '1px solid var(--navy-700)', paddingTop: '12px',
+  },
+  nuevoEventoBtn: {
+    width: '100%', background: 'var(--navy-800)', border: '1px dashed var(--navy-700)',
+    color: 'var(--gold-500)', borderRadius: '8px', padding: '8px', fontSize: '0.8rem',
+    fontWeight: 600, cursor: 'pointer',
+  },
+  nuevoEventoCaja: {
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', borderRadius: '10px',
+    padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px',
+  },
+  nuevoEventoTitulo: { fontSize: '0.75rem', fontWeight: 600, color: 'var(--paper-050)', margin: '0 0 2px' },
+  nuevoEventoInput: {
+    width: '100%', background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
+    color: 'var(--paper-050)', borderRadius: '6px', padding: '7px 8px', fontSize: '0.78rem',
+    outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box',
+  },
+  nuevoEventoFila: { display: 'flex', gap: '8px', alignItems: 'center' },
+  nuevoEventoCheckLabel: {
+    display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem',
+    color: 'var(--paper-100)', whiteSpace: 'nowrap',
+  },
+  nuevoEventoResultado: { fontSize: '0.75rem', fontWeight: 600, margin: '2px 0 0', lineHeight: 1.4 },
+  nuevoEventoBtnCancelar: {
+    flex: 1, background: 'transparent', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    borderRadius: '6px', padding: '7px', fontSize: '0.78rem', cursor: 'pointer',
+  },
+  nuevoEventoBtnCrear: {
+    flex: 1, background: 'var(--gold-500)', border: 'none', color: 'var(--navy-950)',
+    borderRadius: '6px', padding: '7px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+  },
   paisExtraRow: {
     display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px',
     borderTop: '1px solid var(--navy-700)', paddingTop: '12px',
@@ -426,8 +636,8 @@ const styles = {
     fontSize: '0.9rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 4px', textTransform: 'capitalize',
   },
   feriadoBanner: {
-    background: 'rgba(168,50,50,0.12)', border: '1px solid var(--cal-red)', borderRadius: '8px',
-    padding: '8px 10px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--cal-red)',
+    background: 'rgba(232,96,76,0.15)', border: '1px solid var(--coral-500)', borderRadius: '8px',
+    padding: '8px 10px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--coral-500)',
   },
   sinEventos: { fontSize: '0.82rem', opacity: 0.6, margin: 0 },
   eventoItem: {
