@@ -35,7 +35,7 @@ async function getAccessToken() {
       client_secret: MICROSOFT_CLIENT_SECRET,
       refresh_token: MICROSOFT_REFRESH_TOKEN,
       grant_type: 'refresh_token',
-      scope: 'https://graph.microsoft.com/Calendars.Read offline_access',
+      scope: 'https://graph.microsoft.com/Calendars.ReadWrite offline_access',
     }),
   }, 8000);
   if (!resp.ok) {
@@ -46,7 +46,67 @@ async function getAccessToken() {
   return data.access_token;
 }
 
+async function handlerCrearEvento(req, res) {
+  const { titulo, fecha, horaInicio, horaFin, todoElDia, lugar, descripcion, destinatarios } = req.body || {};
+  if (!titulo || !fecha) {
+    return res.status(400).json({ error: 'Falta título o fecha.' });
+  }
+
+  try {
+    const accessToken = await getAccessToken();
+
+    const attendees = (Array.isArray(destinatarios) ? destinatarios : [])
+      .map((email) => String(email).trim())
+      .filter(Boolean)
+      .map((email) => ({ emailAddress: { address: email }, type: 'required' }));
+
+    const body = {
+      subject: titulo,
+      location: lugar ? { displayName: lugar } : undefined,
+      body: descripcion ? { contentType: 'text', content: descripcion } : undefined,
+      isAllDay: !!todoElDia,
+      attendees: attendees.length ? attendees : undefined,
+    };
+
+    if (todoElDia) {
+      body.start = { dateTime: `${fecha}T00:00:00`, timeZone: 'America/Santiago' };
+      const fin = new Date(`${fecha}T00:00:00`);
+      fin.setDate(fin.getDate() + 1);
+      body.end = { dateTime: `${fin.toISOString().slice(0, 10)}T00:00:00`, timeZone: 'America/Santiago' };
+    } else {
+      body.start = { dateTime: `${fecha}T${horaInicio || '09:00'}:00`, timeZone: 'America/Santiago' };
+      body.end = { dateTime: `${fecha}T${horaFin || horaInicio || '10:00'}:00`, timeZone: 'America/Santiago' };
+    }
+
+    // Graph manda la invitación por correo solo, apenas hay "attendees" en
+    // el body — no hace falta ningún paso extra para eso.
+    const resp = await fetchConTimeout(
+      'https://graph.microsoft.com/v1.0/me/events',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      8000
+    );
+
+    if (!resp.ok) {
+      const detalle = await resp.text().catch(() => '');
+      return res.status(502).json({ error: `Outlook respondió con error (${resp.status}).`, detalle });
+    }
+
+    const data = await resp.json();
+    return res.status(200).json({ ok: true, id: data.id, link: data.webLink });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error creando el evento en Outlook.' });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    return handlerCrearEvento(req, res);
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
