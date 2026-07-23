@@ -19,7 +19,7 @@ export default function NowPlayingBar() {
   const [errorControl, setErrorControl] = useState(null);
 
   const consultar = () => {
-    fetch('/api/spotify-now-playing')
+    fetch('/api/spotify')
       .then((r) => r.json())
       .then((d) => setDatos(d))
       .catch(() => {});
@@ -30,7 +30,7 @@ export default function NowPlayingBar() {
 
     let activo = true;
     const consultarSiActivo = () => {
-      fetch('/api/spotify-now-playing')
+      fetch('/api/spotify')
         .then((r) => r.json())
         .then((d) => activo && setDatos(d))
         .catch(() => {});
@@ -48,7 +48,7 @@ export default function NowPlayingBar() {
     setEnviando(true);
     setErrorControl(null);
     try {
-      const resp = await fetch('/api/spotify-control', {
+      const resp = await fetch('/api/spotify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accion }),
