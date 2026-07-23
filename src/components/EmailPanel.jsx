@@ -53,6 +53,9 @@ const OTRAS_APPS = [
 export default function EmailPanel() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [resumen, setResumen] = useState(null);
+  const [cargandoResumen, setCargandoResumen] = useState(false);
+  const [errorResumen, setErrorResumen] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -63,6 +66,20 @@ export default function EmailPanel() {
       .finally(() => activo && setLoading(false));
     return () => { activo = false; };
   }, []);
+
+  function generarResumen() {
+    setCargandoResumen(true);
+    setErrorResumen(null);
+    setResumen(null);
+    fetch('/api/resumen-diario?accion=ver')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setErrorResumen(d.error);
+        else setResumen(d);
+      })
+      .catch(() => setErrorResumen('No se pudo generar el resumen.'))
+      .finally(() => setCargandoResumen(false));
+  }
 
   const renderCeldaCorreo = (key, info) => {
     const fuente = FUENTES[key];
@@ -112,6 +129,41 @@ export default function EmailPanel() {
         {OTRAS_APPS.map(renderCeldaApp)}
       </div>
       <p style={styles.fuenteNota}>Correo: app de Outlook en Mac, Mail en iPhone. Teams y Meet abren directo la app o la web.</p>
+
+      <button style={styles.botonResumen} onClick={generarResumen} disabled={cargandoResumen}>
+        {cargandoResumen ? 'Generando…' : '📋 Resumen de correos y agenda de hoy'}
+      </button>
+      <p style={styles.fuenteNota}>También se envía automáticamente a tu Gmail todos los días a las 8:00.</p>
+
+      {errorResumen && <p style={styles.errorResumen}>{errorResumen}</p>}
+
+      {resumen && (
+        <div style={styles.resumenCaja}>
+          <p style={styles.resumenTitulo}>Correos recibidos hoy ({resumen.correos.length})</p>
+          {resumen.correos.length === 0 ? (
+            <p style={styles.resumenVacio}>Sin correos nuevos hoy.</p>
+          ) : (
+            resumen.correos.map((c, i) => (
+              <div key={i} style={styles.resumenItem}>
+                <span style={styles.resumenHora}>{c.hora}</span>
+                <span style={styles.resumenTexto}><strong>{c.asunto}</strong> — {c.de} <em>({c.fuente})</em></span>
+              </div>
+            ))
+          )}
+
+          <p style={{ ...styles.resumenTitulo, marginTop: '14px' }}>Agenda — hoy y próximos días ({resumen.eventos.length})</p>
+          {resumen.eventos.length === 0 ? (
+            <p style={styles.resumenVacio}>Sin eventos programados.</p>
+          ) : (
+            resumen.eventos.map((e, i) => (
+              <div key={i} style={styles.resumenItem}>
+                <span style={styles.resumenHora}>{e.dia} · {e.hora}</span>
+                <span style={styles.resumenTexto}>{e.titulo} <em>({e.fuente})</em></span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -137,4 +189,19 @@ const styles = {
   cargando: { fontSize: '0.78rem', opacity: 0.5, marginTop: '4px' },
   noDisponible: { fontSize: '0.72rem', color: 'var(--coral-500)', marginTop: '4px' },
   fuenteNota: { fontSize: '0.65rem', opacity: 0.45, margin: '10px 0 6px' },
+  botonResumen: {
+    width: '100%', background: 'var(--gold-500)', border: 'none', color: 'var(--navy-950)',
+    borderRadius: '10px', padding: '10px', fontSize: '0.82rem', fontWeight: 700,
+    cursor: 'pointer', marginTop: '4px',
+  },
+  errorResumen: { fontSize: '0.75rem', color: 'var(--cal-red)', marginTop: '8px' },
+  resumenCaja: {
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '12px',
+    padding: '14px', marginTop: '10px',
+  },
+  resumenTitulo: { fontSize: '0.78rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 8px' },
+  resumenVacio: { fontSize: '0.78rem', opacity: 0.6, margin: 0 },
+  resumenItem: { display: 'flex', gap: '8px', fontSize: '0.78rem', padding: '4px 0', alignItems: 'baseline' },
+  resumenHora: { fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--paper-100)', flexShrink: 0, minWidth: '80px' },
+  resumenTexto: { color: 'var(--paper-050)' },
 };
