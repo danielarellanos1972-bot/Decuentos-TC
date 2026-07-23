@@ -262,6 +262,7 @@ async function enviarPorGmail(texto, asunto) {
 }
 
 export default async function handler(req, res) {
+  console.log('resumen-diario: INICIO, accion=', req.query.accion);
   const accion = req.query.accion === 'enviar' ? 'enviar' : 'ver';
   const dias = 3;
 
@@ -270,8 +271,10 @@ export default async function handler(req, res) {
     // CRON_SECRET está configurado) puede disparar el envío real por correo.
     const auth = req.headers['authorization'] || '';
     if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.log('resumen-diario: 401 no autorizado. CRON_SECRET presente?', !!process.env.CRON_SECRET);
       return res.status(401).json({ error: 'No autorizado.' });
     }
+    console.log('resumen-diario: auth OK, arrancando busqueda de correos/eventos');
   }
 
   try {
@@ -288,14 +291,18 @@ export default async function handler(req, res) {
 
     const texto = armarTexto({ correos, eventos, dias });
 
+    console.log('resumen-diario: resumen armado, correos=', correos.length, 'eventos=', eventos.length, 'errores=', errores);
     if (accion === 'enviar') {
       const asunto = `Resumen diario — ${new Date().toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })}`;
+      console.log('resumen-diario: intentando enviar por Gmail a', process.env.GMAIL_TO);
       await enviarPorGmail(texto, asunto);
+      console.log('resumen-diario: correo enviado OK');
       return res.status(200).json({ ok: true, enviado: true });
     }
 
     return res.status(200).json({ ok: true, correos, eventos, texto, errores: errores.length ? errores : null });
   } catch (err) {
+    console.error('resumen-diario error:', err);
     return res.status(500).json({ error: err.message || 'Error generando el resumen.' });
   }
 }
