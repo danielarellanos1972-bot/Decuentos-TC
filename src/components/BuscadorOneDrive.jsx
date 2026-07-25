@@ -2,11 +2,39 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export default function BuscadorOneDrive() {
+  const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar'
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState(null);
   const [archivoAnalisis, setArchivoAnalisis] = useState(null);
+
+  const [pregunta, setPregunta] = useState('');
+  const [respuestaRag, setRespuestaRag] = useState(null);
+  const [fuentesRag, setFuentesRag] = useState(null);
+  const [preguntando, setPreguntando] = useState(false);
+  const [errorRag, setErrorRag] = useState(null);
+
+  function preguntar(e) {
+    e.preventDefault();
+    const texto = pregunta.trim();
+    if (!texto) return;
+    setPreguntando(true);
+    setErrorRag(null);
+    setRespuestaRag(null);
+    setFuentesRag(null);
+    fetch(`/api/unread-mail?tipo=onedrive-preguntar&q=${encodeURIComponent(texto)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setErrorRag(d.error);
+        else {
+          setRespuestaRag(d.respuesta);
+          setFuentesRag(d.fuentes || []);
+        }
+      })
+      .catch(() => setErrorRag('No se pudo generar la respuesta.'))
+      .finally(() => setPreguntando(false));
+  }
 
   function buscar(e) {
     e.preventDefault();
@@ -51,8 +79,29 @@ export default function BuscadorOneDrive() {
   return (
     <section style={styles.section}>
       <h2 style={styles.h2}>Buscar en OneDrive</h2>
-      <p style={styles.sub}>Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.</p>
+      <p style={styles.sub}>
+        {modo === 'buscar'
+          ? 'Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.'
+          : 'Hazle una pregunta a tus documentos — la respuesta se arma cruzando el contenido de los archivos relevantes.'}
+      </p>
 
+      <div style={styles.toggleFila}>
+        <button
+          style={{ ...styles.toggleBoton, ...(modo === 'buscar' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('buscar')}
+        >
+          🔍 Buscar archivos
+        </button>
+        <button
+          style={{ ...styles.toggleBoton, ...(modo === 'preguntar' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('preguntar')}
+        >
+          💬 Preguntar a mis documentos
+        </button>
+      </div>
+
+      {modo === 'buscar' && (
+      <>
       <form style={styles.formFila} onSubmit={buscar}>
         <input
           style={styles.input}
@@ -95,6 +144,49 @@ export default function BuscadorOneDrive() {
             </div>
           ))}
         </div>
+      )}
+      </>
+      )}
+
+      {modo === 'preguntar' && (
+        <>
+        <form style={styles.formFila} onSubmit={preguntar}>
+          <input
+            style={styles.input}
+            type="text"
+            placeholder="ej: ¿qué contratos vencen este año?, resume los CV recibidos..."
+            value={pregunta}
+            onChange={(e) => setPregunta(e.target.value)}
+          />
+          <button style={styles.botonBuscar} type="submit" disabled={preguntando}>
+            {preguntando ? 'Pensando…' : '💬 Preguntar'}
+          </button>
+        </form>
+
+        {errorRag && <p style={styles.error}>{errorRag}</p>}
+
+        {respuestaRag && (
+          <div style={styles.ragCaja}>
+            <div style={styles.contadorFila}>
+              <p style={styles.contador}>Respuesta</p>
+              <button style={styles.botonCerrarResultados} onClick={() => { setRespuestaRag(null); setFuentesRag(null); }}>✕ Cerrar</button>
+            </div>
+            {respuestaRag.split('\n').filter(Boolean).map((linea, i) => (
+              <p key={i} style={styles.ragLinea}>{linea}</p>
+            ))}
+            {fuentesRag && fuentesRag.length > 0 && (
+              <div style={styles.ragFuentes}>
+                <p style={styles.modalSeccion}>Fuentes</p>
+                {fuentesRag.map((f, i) => (
+                  <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
+                    📄 {f.nombre} ↗
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        </>
       )}
 
       {archivoAnalisis && createPortal(
@@ -226,5 +318,23 @@ const styles = {
   },
   modalLinea: {
     fontSize: '0.85rem', color: 'var(--paper-050)', margin: '0 0 8px', paddingLeft: '14px', position: 'relative',
+  },
+  toggleFila: { display: 'flex', gap: '8px', marginBottom: '14px' },
+  toggleBoton: {
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    borderRadius: '999px', padding: '7px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+  },
+  toggleBotonActivo: {
+    background: 'var(--gold-500)', borderColor: 'var(--gold-500)', color: 'var(--navy-950)',
+  },
+  ragCaja: {
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '12px',
+    padding: '16px', marginTop: '16px',
+  },
+  ragLinea: { fontSize: '0.9rem', color: 'var(--paper-050)', lineHeight: 1.5, margin: '0 0 10px' },
+  ragFuentes: { marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--navy-700)' },
+  ragFuenteItem: {
+    display: 'block', fontSize: '0.8rem', color: 'var(--gold-500)', fontWeight: 600,
+    textDecoration: 'none', margin: '4px 0',
   },
 };
