@@ -41,7 +41,15 @@ async function getGoogleAccessToken() {
   return data.access_token;
 }
 
-async function getMicrosoftAccessToken() {
+// El scope es un parámetro (no fijo) por la misma razón que en
+// outlook-events.js: pedir de más en la renovación del token rompe hasta lo
+// que ya funcionaba si el refresh_token no tiene ese permiso concedido
+// todavía. El valor por defecto es el que ya está autorizado (correo +
+// calendario); la búsqueda en OneDrive pide explícitamente el scope extra
+// de Files.Read, que va a fallar con un error claro hasta que se reautorice
+// la cuenta de Microsoft con ese permiso — sin afectar el contador de
+// correos que ya funciona.
+async function getMicrosoftAccessToken(scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read offline_access') {
   const { MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REFRESH_TOKEN } = process.env;
   if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REFRESH_TOKEN) {
     throw new Error('Faltan variables de entorno de Microsoft.');
@@ -54,7 +62,7 @@ async function getMicrosoftAccessToken() {
       client_secret: MICROSOFT_CLIENT_SECRET,
       refresh_token: MICROSOFT_REFRESH_TOKEN,
       grant_type: 'refresh_token',
-      scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read offline_access',
+      scope,
     }),
   }, 8000);
   if (!resp.ok) throw new Error(`No se pudo renovar el token de Microsoft (${resp.status}).`);
@@ -138,9 +146,72 @@ async function getOutlookUnread() {
   }
 }
 
+// Detecta el tipo de archivo por su extensión, para mostrar un ícono y una
+// etiqueta reconocibles (Word / Excel / PDF / PowerPoint / otro).
+function tipoDeArchivo(nombre) {
+  const ext = (nombre.split('.').pop() || '').toLowerCase();
+  if (['doc', 'docx'].includes(ext)) return { etiqueta: 'Word', icono: '📄', color: '#1B5FBD' };
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return { etiqueta: 'Excel', icono: '📊', color: '#1D7A46' };
+  if (ext === 'pdf') return { etiqueta: 'PDF', icono: '📕', color: '#B3312C' };
+  if (['ppt', 'pptx'].includes(ext)) return { etiqueta: 'PowerPoint', icono: '📙', color: '#C0431A' };
+  if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) return { etiqueta: 'Imagen', icono: '🖼️', color: '#7A5AC2' };
+  return { etiqueta: ext ? ext.toUpperCase() : 'Archivo', icono: '📁', color: '#6B6558' };
+}
+
+function formatoTamano(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return `${Math.round(bytes / 1024)} KB`;
+  return `${mb.toFixed(1)} MB`;
+}
+
+async function handlerBuscarOneDrive(req, res) {
+  const q = (req.query.q || '').trim();
+  if (!q) {
+    return res.status(400).json({ error: 'Falta el término de búsqueda (parámetro "q").' });
+  }
+  try {
+    const accessToken = await getMicrosoftAccessToken(
+      'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
+    );
+    const resp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(q)}')?$top=25&$select=name,webUrl,size,lastModifiedDateTime,file,folder,parentReference`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (!resp.ok) {
+      const detalle = await resp.text().catch(() => '');
+      return res.status(502).json({ error: `OneDrive respondió con error (${resp.status}).`, detalle });
+    }
+    const data = await resp.json();
+    const resultados = (data.value || [])
+      .filter((item) => !item.folder) // solo archivos, no carpetas
+      .map((item) => {
+        const tipo = tipoDeArchivo(item.name);
+        return {
+          nombre: item.name,
+          tipoEtiqueta: tipo.etiqueta,
+          tipoIcono: tipo.icono,
+          tipoColor: tipo.color,
+          tamano: formatoTamano(item.size),
+          modificado: item.lastModifiedDateTime,
+          carpeta: item.parentReference?.path?.replace(/^\/drive\/root:/, '') || '',
+          webUrl: item.webUrl,
+        };
+      });
+    return res.status(200).json({ ok: true, resultados });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error buscando en OneDrive.' });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  if (req.query.tipo === 'onedrive') {
+    return handlerBuscarOneDrive(req, res);
   }
 
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=180');
