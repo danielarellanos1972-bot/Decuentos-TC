@@ -1,3 +1,6 @@
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+
 // api/unread-mail.js
 // Vercel Serverless Function
 // GET /api/unread-mail
@@ -175,7 +178,7 @@ async function handlerBuscarOneDrive(req, res) {
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
     const resp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(q)}')?$top=25&$select=name,webUrl,size,lastModifiedDateTime,file,folder,parentReference`,
+      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(q)}')?$top=25&$select=id,name,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,file,folder,parentReference`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
       8000
     );
@@ -189,19 +192,182 @@ async function handlerBuscarOneDrive(req, res) {
       .map((item) => {
         const tipo = tipoDeArchivo(item.name);
         return {
+          id: item.id,
           nombre: item.name,
           tipoEtiqueta: tipo.etiqueta,
           tipoIcono: tipo.icono,
           tipoColor: tipo.color,
           tamano: formatoTamano(item.size),
           modificado: item.lastModifiedDateTime,
-          carpeta: item.parentReference?.path?.replace(/^\/drive\/root:/, '') || '',
+          carpeta: decodeURIComponent(item.parentReference?.path?.replace(/^\/drive\/root:/, '') || ''),
           webUrl: item.webUrl,
+          // El análisis solo tiene sentido para formatos de los que se
+          // puede extraer texto de forma confiable.
+          analizable: /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name),
         };
       });
     return res.status(200).json({ ok: true, resultados });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error buscando en OneDrive.' });
+  }
+}
+
+// --- Análisis de archivo: datos generales + resumen ejecutivo ---
+
+// pdf-parse, importado así (apuntando directo al módulo interno en vez del
+// índice del paquete), evita que intente leer un PDF de prueba propio al
+// cargarse — un problema conocido de esa librería en entornos serverless.
+async function extraerTextoPDF(buffer) {
+  const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
+  const data = await pdfParse(buffer);
+  return data.text;
+}
+
+function extraerTextoXLSX(buffer) {
+  const libro = XLSX.read(buffer, { type: 'buffer' });
+  const partes = [];
+  libro.SheetNames.slice(0, 5).forEach((nombreHoja) => {
+    const hoja = libro.Sheets[nombreHoja];
+    const csv = XLSX.utils.sheet_to_csv(hoja, { blankrows: false });
+    partes.push(`Hoja "${nombreHoja}":\n${csv.slice(0, 4000)}`);
+  });
+  return partes.join('\n\n');
+}
+
+async function extraerTexto(nombre, buffer) {
+  const ext = (nombre.split('.').pop() || '').toLowerCase();
+  if (ext === 'docx') {
+    const resultado = await mammoth.extractRawText({ buffer });
+    return resultado.value;
+  }
+  if (ext === 'xlsx' || ext === 'xls') {
+    return extraerTextoXLSX(buffer);
+  }
+  if (ext === 'csv' || ext === 'txt') {
+    return buffer.toString('utf8');
+  }
+  if (ext === 'pdf') {
+    return await extraerTextoPDF(buffer);
+  }
+  return null;
+}
+
+async function resumenEjecutivo(texto) {
+  const { GROQ_API_KEY } = process.env;
+  if (!GROQ_API_KEY) {
+    throw new Error('Falta la variable de entorno GROQ_API_KEY.');
+  }
+  const textoRecortado = texto.slice(0, 12000);
+  const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: 'Eres un asistente ejecutivo. Resume el documento en español, en un tono directo y profesional, en 4 a 6 viñetas cortas con los puntos más importantes (de qué trata, cifras o fechas clave si las hay, y cualquier acción o decisión pendiente). No agregues introducción ni cierre, solo las viñetas.',
+        },
+        { role: 'user', content: textoRecortado },
+      ],
+      temperature: 0.3,
+      max_tokens: 500,
+    }),
+  }, 20000);
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`No se pudo generar el resumen (${resp.status}): ${detalle.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  return data.choices?.[0]?.message?.content?.trim() || null;
+}
+
+async function handlerAnalisisOneDrive(req, res) {
+  const id = req.query.id;
+  if (!id) {
+    return res.status(400).json({ error: 'Falta el identificador del archivo (parámetro "id").' });
+  }
+  try {
+    const accessToken = await getMicrosoftAccessToken(
+      'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
+    );
+
+    const metaResp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/drive/items/${id}?$select=id,name,size,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,webUrl`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (!metaResp.ok) {
+      const detalle = await metaResp.text().catch(() => '');
+      return res.status(502).json({ error: `OneDrive respondió con error (${metaResp.status}) al leer los datos del archivo.`, detalle });
+    }
+    const meta = await metaResp.json();
+
+    const datosGenerales = {
+      nombre: meta.name,
+      tamano: formatoTamano(meta.size),
+      creado: meta.createdDateTime,
+      modificado: meta.lastModifiedDateTime,
+      autor: meta.createdBy?.user?.displayName || null,
+      ultimaEdicionPor: meta.lastModifiedBy?.user?.displayName || null,
+      webUrl: meta.webUrl,
+    };
+
+    const ext = (meta.name.split('.').pop() || '').toLowerCase();
+    if (!/^(docx|xlsx|xls|csv|pdf|txt)$/.test(ext)) {
+      return res.status(200).json({
+        ok: true,
+        datosGenerales,
+        resumen: null,
+        disponible: false,
+        motivo: `El resumen automático no está disponible para archivos .${ext} todavía — solo Word, Excel, CSV, texto plano y PDF.`,
+      });
+    }
+
+    const contenidoResp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/drive/items/${id}/content`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      15000
+    );
+    if (!contenidoResp.ok) {
+      return res.status(200).json({
+        ok: true,
+        datosGenerales,
+        resumen: null,
+        disponible: false,
+        motivo: 'No se pudo descargar el contenido del archivo para analizarlo.',
+      });
+    }
+    const arrayBuffer = await contenidoResp.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    let texto;
+    try {
+      texto = await extraerTexto(meta.name, buffer);
+    } catch (err) {
+      return res.status(200).json({
+        ok: true,
+        datosGenerales,
+        resumen: null,
+        disponible: false,
+        motivo: `No se pudo leer el contenido de este archivo (puede ser un PDF escaneado sin texto, o un formato dañado): ${err.message}`,
+      });
+    }
+
+    if (!texto || !texto.trim()) {
+      return res.status(200).json({
+        ok: true,
+        datosGenerales,
+        resumen: null,
+        disponible: false,
+        motivo: 'El archivo no tiene texto que se pueda extraer (por ejemplo, un PDF con solo imágenes escaneadas).',
+      });
+    }
+
+    const resumen = await resumenEjecutivo(texto);
+    return res.status(200).json({ ok: true, datosGenerales, resumen, disponible: true, motivo: null });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error analizando el archivo.' });
   }
 }
 
@@ -212,6 +378,10 @@ export default async function handler(req, res) {
 
   if (req.query.tipo === 'onedrive') {
     return handlerBuscarOneDrive(req, res);
+  }
+
+  if (req.query.tipo === 'onedrive-analisis') {
+    return handlerAnalisisOneDrive(req, res);
   }
 
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=180');
