@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export default function BuscadorOneDrive() {
-  const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar'
+  const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar' | 'comparar'
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
   const [avisoIncompleto, setAvisoIncompleto] = useState(null);
@@ -16,6 +16,37 @@ export default function BuscadorOneDrive() {
   const [avisoRag, setAvisoRag] = useState(null);
   const [preguntando, setPreguntando] = useState(false);
   const [errorRag, setErrorRag] = useState(null);
+
+  const [aviso, setAviso] = useState('');
+  const [evaluacionCV, setEvaluacionCV] = useState(null);
+  const [cvsUsados, setCvsUsados] = useState(null);
+  const [comparando, setComparando] = useState(false);
+  const [errorCV, setErrorCV] = useState(null);
+
+  function compararCV(e) {
+    e.preventDefault();
+    const texto = aviso.trim();
+    if (!texto) return;
+    setComparando(true);
+    setErrorCV(null);
+    setEvaluacionCV(null);
+    setCvsUsados(null);
+    fetch('/api/unread-mail?tipo=onedrive-comparar-cv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aviso: texto }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setErrorCV(d.error);
+        else {
+          setEvaluacionCV(d.evaluacion);
+          setCvsUsados(d.cvs || []);
+        }
+      })
+      .catch(() => setErrorCV('No se pudo comparar los CV.'))
+      .finally(() => setComparando(false));
+  }
 
   function preguntar(e) {
     e.preventDefault();
@@ -88,9 +119,9 @@ export default function BuscadorOneDrive() {
     <section style={styles.section}>
       <h2 style={styles.h2}>Buscar en OneDrive</h2>
       <p style={styles.sub}>
-        {modo === 'buscar'
-          ? 'Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.'
-          : 'Hazle una pregunta a tus documentos — la respuesta se arma cruzando el contenido de los archivos relevantes.'}
+        {modo === 'buscar' && 'Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.'}
+        {modo === 'preguntar' && 'Hazle una pregunta a tus documentos — la respuesta se arma cruzando el contenido de los archivos relevantes.'}
+        {modo === 'comparar' && 'Pega un aviso de trabajo y te digo cuál de tus versiones de CV calza mejor.'}
       </p>
 
       <div style={styles.toggleFila}>
@@ -105,6 +136,12 @@ export default function BuscadorOneDrive() {
           onClick={() => setModo('preguntar')}
         >
           💬 Preguntar a mis documentos
+        </button>
+        <button
+          style={{ ...styles.toggleBoton, ...(modo === 'comparar' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('comparar')}
+        >
+          🎯 Comparar CV con un aviso
         </button>
       </div>
 
@@ -199,6 +236,47 @@ export default function BuscadorOneDrive() {
         </>
       )}
 
+      {modo === 'comparar' && (
+        <>
+        <form style={styles.formFila} onSubmit={compararCV}>
+          <textarea
+            style={styles.textarea}
+            placeholder="Pega aquí el texto del aviso de trabajo (cargo, requisitos, descripción)..."
+            value={aviso}
+            onChange={(e) => setAviso(e.target.value)}
+            rows={5}
+          />
+        </form>
+        <button style={styles.botonBuscar} onClick={compararCV} disabled={comparando}>
+          {comparando ? 'Comparando…' : '🎯 Comparar mis CV con este aviso'}
+        </button>
+
+        {errorCV && <p style={styles.error}>{errorCV}</p>}
+
+        {evaluacionCV && (
+          <div style={styles.ragCaja}>
+            <div style={styles.contadorFila}>
+              <p style={styles.contador}>Evaluación</p>
+              <button style={styles.botonCerrarResultados} onClick={() => { setEvaluacionCV(null); setCvsUsados(null); }}>✕ Cerrar</button>
+            </div>
+            {evaluacionCV.split('\n').filter(Boolean).map((linea, i) => (
+              <p key={i} style={styles.ragLinea}>{linea}</p>
+            ))}
+            {cvsUsados && cvsUsados.length > 0 && (
+              <div style={styles.ragFuentes}>
+                <p style={styles.modalSeccion}>CVs considerados</p>
+                {cvsUsados.map((f, i) => (
+                  <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
+                    📄 {f.nombre} ↗
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        </>
+      )}
+
       {archivoAnalisis && createPortal(
         <div style={styles.modalFondo} onClick={() => setArchivoAnalisis(null)}>
           <div style={styles.modalCaja} onClick={(e) => e.stopPropagation()}>
@@ -262,6 +340,11 @@ const styles = {
     flex: 1, background: 'var(--navy-900)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
     borderRadius: '10px', padding: '11px 14px', fontSize: '0.9rem', outline: 'none',
     fontFamily: 'var(--font-body)',
+  },
+  textarea: {
+    width: '100%', background: 'var(--navy-900)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
+    borderRadius: '10px', padding: '11px 14px', fontSize: '0.85rem', outline: 'none',
+    fontFamily: 'var(--font-body)', resize: 'vertical', boxSizing: 'border-box', marginBottom: '8px',
   },
   botonBuscar: {
     background: 'var(--gold-500)', border: 'none', color: 'var(--navy-950)', borderRadius: '10px',
