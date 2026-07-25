@@ -580,6 +580,7 @@ const MAX_CARACTERES_CV = 2500;
 
 async function handlerCompararCV(req, res) {
   const aviso = (req.body?.aviso || '').trim();
+  const filtro = (req.body?.filtro || '').trim();
   if (!aviso) {
     return res.status(400).json({ error: 'Falta el texto del aviso de trabajo.' });
   }
@@ -590,20 +591,35 @@ async function handlerCompararCV(req, res) {
 
     const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
     const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const esCV = (nombre) => {
-      const n = normalizar(nombre);
-      return (n.includes('cv') || n.includes('resume')) && /\.(docx|pdf|txt)$/i.test(nombre);
-    };
 
-    const candidatos = todos
-      .filter((item) => esCV(item.name))
-      .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
-      .slice(0, MAX_CVS_COMPARAR);
+    // Si Nano especificó qué archivo(s) usar, se respeta eso tal cual (solo
+    // filtra por nombre, sin exigir "cv"/"resume" — puede ser cualquier
+    // documento). Si no especificó nada, se mantiene la detección automática
+    // de archivos que parecen CV.
+    let candidatos;
+    if (filtro) {
+      const filtroNorm = normalizar(filtro);
+      candidatos = todos
+        .filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name) && normalizar(item.name).includes(filtroNorm))
+        .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+        .slice(0, MAX_CVS_COMPARAR);
+    } else {
+      const esCV = (nombre) => {
+        const n = normalizar(nombre);
+        return (n.includes('cv') || n.includes('resume')) && /\.(docx|pdf|txt)$/i.test(nombre);
+      };
+      candidatos = todos
+        .filter((item) => esCV(item.name))
+        .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+        .slice(0, MAX_CVS_COMPARAR);
+    }
 
     if (candidatos.length === 0) {
       return res.status(200).json({
         ok: true,
-        evaluacion: 'No encontré archivos que parezcan CVs en tu OneDrive (busco archivos Word, PDF o texto con "CV" o "resume" en el nombre).',
+        evaluacion: filtro
+          ? `No encontré ningún archivo cuyo nombre contenga "${filtro}".`
+          : 'No encontré archivos que parezcan CVs en tu OneDrive (busco archivos Word, PDF o texto con "CV" o "resume" en el nombre). Prueba escribiendo el nombre exacto en el campo de arriba.',
         cvs: [],
       });
     }
