@@ -19,10 +19,31 @@ export default function BuscadorOneDrive() {
 
   const [aviso, setAviso] = useState('');
   const [filtroArchivo, setFiltroArchivo] = useState('');
+  const [archivoSubido, setArchivoSubido] = useState(null); // { nombre, base64 }
+  const [leyendoArchivo, setLeyendoArchivo] = useState(false);
   const [evaluacionCV, setEvaluacionCV] = useState(null);
   const [cvsUsados, setCvsUsados] = useState(null);
   const [comparando, setComparando] = useState(false);
   const [errorCV, setErrorCV] = useState(null);
+
+  function elegirArchivo(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLeyendoArchivo(true);
+    const lector = new FileReader();
+    lector.onload = () => {
+      // El resultado viene como "data:<mime>;base64,AAAA..." — solo se
+      // necesita la parte de después de la coma.
+      const base64 = String(lector.result).split(',')[1] || '';
+      setArchivoSubido({ nombre: file.name, base64 });
+      setLeyendoArchivo(false);
+    };
+    lector.onerror = () => {
+      setErrorCV('No se pudo leer ese archivo.');
+      setLeyendoArchivo(false);
+    };
+    lector.readAsDataURL(file);
+  }
 
   function compararCV(e) {
     e.preventDefault();
@@ -35,7 +56,11 @@ export default function BuscadorOneDrive() {
     fetch('/api/unread-mail?tipo=onedrive-comparar-cv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ aviso: texto, filtro: filtroArchivo.trim() }),
+      body: JSON.stringify(
+        archivoSubido
+          ? { aviso: texto, archivoBase64: archivoSubido.base64, archivoNombre: archivoSubido.nombre }
+          : { aviso: texto, filtro: filtroArchivo.trim() }
+      ),
     })
       .then((r) => r.json())
       .then((d) => {
@@ -239,18 +264,38 @@ export default function BuscadorOneDrive() {
 
       {modo === 'comparar' && (
         <>
-        <form style={styles.formFila} onSubmit={compararCV}>
-          <input
-            style={styles.input}
-            type="text"
-            placeholder="Nombre del archivo a usar (opcional) — ej: CV_Daniel_Arellano_Gerente_Operaciones"
-            value={filtroArchivo}
-            onChange={(e) => setFiltroArchivo(e.target.value)}
-          />
-        </form>
-        <p style={styles.subCampo}>
-          Déjalo vacío para que busque automáticamente entre tus archivos que parecen CV. Si escribes algo, solo compara los archivos cuyo nombre lo contenga.
-        </p>
+        <div style={styles.subirFila}>
+          <label style={styles.botonSubir}>
+            {leyendoArchivo ? 'Leyendo…' : archivoSubido ? `📎 ${archivoSubido.nombre}` : '📎 Subir archivo desde mi computador'}
+            <input
+              type="file"
+              accept=".docx,.pdf,.txt,.csv,.xlsx,.xls"
+              onChange={elegirArchivo}
+              style={styles.inputArchivoOculto}
+            />
+          </label>
+          {archivoSubido && (
+            <button style={styles.botonQuitarArchivo} onClick={() => setArchivoSubido(null)}>✕ Quitar</button>
+          )}
+        </div>
+
+        {!archivoSubido && (
+          <>
+          <form style={styles.formFila} onSubmit={compararCV}>
+            <input
+              style={styles.input}
+              type="text"
+              placeholder="O escribe el nombre del archivo en OneDrive (opcional) — ej: CV_Daniel_Arellano_Gerente_Operaciones"
+              value={filtroArchivo}
+              onChange={(e) => setFiltroArchivo(e.target.value)}
+            />
+          </form>
+          <p style={styles.subCampo}>
+            Déjalo vacío para que busque automáticamente entre tus archivos que parecen CV en OneDrive. Si escribes algo, solo compara los archivos cuyo nombre lo contenga.
+          </p>
+          </>
+        )}
+
         <form style={styles.formFila} onSubmit={compararCV}>
           <textarea
             style={styles.textarea}
@@ -260,8 +305,8 @@ export default function BuscadorOneDrive() {
             rows={5}
           />
         </form>
-        <button style={styles.botonBuscar} onClick={compararCV} disabled={comparando}>
-          {comparando ? 'Comparando…' : '🎯 Comparar mis CV con este aviso'}
+        <button style={styles.botonBuscar} onClick={compararCV} disabled={comparando || leyendoArchivo}>
+          {comparando ? 'Comparando…' : '🎯 Comparar mi CV con este aviso'}
         </button>
 
         {errorCV && <p style={styles.error}>{errorCV}</p>}
@@ -279,9 +324,13 @@ export default function BuscadorOneDrive() {
               <div style={styles.ragFuentes}>
                 <p style={styles.modalSeccion}>CVs considerados</p>
                 {cvsUsados.map((f, i) => (
-                  <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
-                    📄 {f.nombre} ↗
-                  </a>
+                  f.webUrl ? (
+                    <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
+                      📄 {f.nombre} ↗
+                    </a>
+                  ) : (
+                    <p key={i} style={styles.ragFuenteItem}>📎 {f.nombre} (subido)</p>
+                  )
                 ))}
               </div>
             )}
@@ -349,6 +398,17 @@ const styles = {
   h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 4px', color: 'var(--paper-050)' },
   sub: { fontSize: '0.85rem', color: 'var(--paper-100)', margin: '0 0 14px' },
   subCampo: { fontSize: '0.72rem', color: 'var(--paper-100)', margin: '-2px 0 10px' },
+  subirFila: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' },
+  botonSubir: {
+    display: 'inline-block', background: 'var(--navy-900)', border: '1px dashed var(--navy-700)',
+    color: 'var(--paper-050)', borderRadius: '10px', padding: '10px 16px', fontSize: '0.85rem',
+    fontWeight: 600, cursor: 'pointer',
+  },
+  inputArchivoOculto: { display: 'none' },
+  botonQuitarArchivo: {
+    background: 'transparent', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    borderRadius: '999px', padding: '6px 12px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+  },
   formFila: { display: 'flex', gap: '8px' },
   input: {
     flex: 1, background: 'var(--navy-900)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
