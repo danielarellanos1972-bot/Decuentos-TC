@@ -238,16 +238,123 @@ function armarTexto({ correos, eventos, dias }) {
   return lineas.join('\n');
 }
 
-async function enviarPorGmail(texto, asunto) {
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Correo con tarjetas, en la misma paleta de la app (fondo durazno, acento
+// burdeos, verde/rojo para agenda) — mismos datos que armarTexto, distinto
+// formato.
+function armarHTML({ correos, eventos, dias }) {
+  const fechaTitulo = new Date().toLocaleDateString('es-CL', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago',
+  });
+
+  const BG = '#FDF4EE';
+  const CARD_BG = '#FFFFFF';
+  const BORDER = '#F0DCC9';
+  const INK = '#55402E';
+  const MUTED = '#8A7A6B';
+  const ACCENT = '#8C3A3A';
+
+  const badge = (texto, color) => `
+    <span style="display:inline-block;font-size:11px;font-weight:700;color:#FFFFFF;background:${color};
+      border-radius:999px;padding:2px 9px;letter-spacing:.02em;">${escapeHtml(texto)}</span>`;
+
+  const fuenteColor = (fuente) => (fuente === 'Google' ? '#1A73E8' : fuente === 'Outlook' ? '#0F6CBD' : ACCENT);
+
+  const tarjetaCorreo = (c) => `
+    <div style="background:${CARD_BG};border:1px solid ${BORDER};border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-family:'SF Mono',Menlo,monospace;font-size:12px;color:${MUTED};">${escapeHtml(c.hora)}</span>
+        ${badge(c.fuente, fuenteColor(c.fuente))}
+      </div>
+      <div style="font-size:15px;font-weight:700;color:${INK};margin-bottom:2px;">${escapeHtml(c.asunto)}</div>
+      <div style="font-size:13px;color:${MUTED};">${escapeHtml(c.de)}</div>
+    </div>`;
+
+  const tarjetaEvento = (e) => `
+    <div style="background:${CARD_BG};border:1px solid ${BORDER};border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-family:'SF Mono',Menlo,monospace;font-size:12px;color:${MUTED};">${escapeHtml(e.hora)}</span>
+        ${badge(e.fuente, fuenteColor(e.fuente))}
+      </div>
+      <div style="font-size:15px;font-weight:700;color:${INK};">${escapeHtml(e.titulo)}</div>
+    </div>`;
+
+  let bloqueEventos = '';
+  if (eventos.length === 0) {
+    bloqueEventos = `<p style="color:${MUTED};font-size:14px;">Sin eventos programados.</p>`;
+  } else {
+    let diaActual = '';
+    eventos.forEach((e) => {
+      if (e.dia !== diaActual) {
+        diaActual = e.dia;
+        bloqueEventos += `<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${ACCENT};margin:16px 0 8px;">${escapeHtml(diaActual)}</p>`;
+      }
+      bloqueEventos += tarjetaEvento(e);
+    });
+  }
+
+  const bloqueCorreos = correos.length === 0
+    ? `<p style="color:${MUTED};font-size:14px;">Sin correos nuevos hoy.</p>`
+    : correos.map(tarjetaCorreo).join('');
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<body style="margin:0;padding:0;background:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:28px 18px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <p style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:${ACCENT};font-weight:700;margin:0 0 4px;">Resumen diario</p>
+      <h1 style="font-family:Georgia,'Iowan Old Style',serif;font-size:24px;color:${INK};margin:0;text-transform:capitalize;">${escapeHtml(fechaTitulo)}</h1>
+    </div>
+
+    <p style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${INK};margin:0 0 10px;">
+      Correos recibidos hoy (${correos.length})
+    </p>
+    ${bloqueCorreos}
+
+    <p style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${INK};margin:24px 0 10px;">
+      Agenda — hoy y próximos ${dias} días (${eventos.length})
+    </p>
+    ${bloqueEventos}
+
+    <p style="text-align:center;font-size:11px;color:${MUTED};margin-top:28px;">Descuentos TC · resumen automático</p>
+  </div>
+</body>
+</html>`;
+}
+
+async function enviarPorGmail(texto, html, asunto) {
   const accessToken = await getGoogleAccessToken();
   const destino = process.env.GMAIL_TO;
   if (!destino) throw new Error('Falta la variable de entorno GMAIL_TO.');
+  // multipart/alternative: manda las dos versiones (texto plano y HTML con
+  // tarjetas). Gmail y la mayoría de los clientes de correo muestran la
+  // versión HTML; el texto plano queda como respaldo para lectores que no
+  // rendericen HTML.
+  const boundary = 'resumen-diario-boundary-' + Date.now();
   const mensaje = [
     `To: ${destino}`,
     `Subject: =?UTF-8?B?${Buffer.from(asunto, 'utf8').toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     '',
     texto,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    '',
+    html,
+    '',
+    `--${boundary}--`,
   ].join('\r\n');
   const raw = Buffer.from(mensaje, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const resp = await fetchConTimeout('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -290,12 +397,13 @@ export default async function handler(req, res) {
     const errores = [gCorreos.error, oCorreos.error, gEventos.error, oEventos.error].filter(Boolean);
 
     const texto = armarTexto({ correos, eventos, dias });
+    const html = armarHTML({ correos, eventos, dias });
 
     console.log('resumen-diario: resumen armado, correos=', correos.length, 'eventos=', eventos.length, 'errores=', errores);
     if (accion === 'enviar') {
       const asunto = `Resumen diario — ${new Date().toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })}`;
       console.log('resumen-diario: intentando enviar por Gmail a', process.env.GMAIL_TO);
-      await enviarPorGmail(texto, asunto);
+      await enviarPorGmail(texto, html, asunto);
       console.log('resumen-diario: correo enviado OK');
       return res.status(200).json({ ok: true, enviado: true });
     }
