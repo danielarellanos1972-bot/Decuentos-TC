@@ -168,6 +168,52 @@ function formatoTamano(bytes) {
   return `${mb.toFixed(1)} MB`;
 }
 
+// El endpoint de búsqueda de Graph (/search) es conocidamente poco
+// confiable para cuentas PERSONALES de OneDrive (Hotmail/Outlook.com) —
+// Microsoft lo documenta como una limitación conocida, a diferencia de las
+// cuentas empresariales donde sí funciona bien (a veces encuentra archivos,
+// a veces no, sin que cambie nada de tu lado). En vez de depender de eso,
+// esta función recorre el drive completo con /delta (mismo mecanismo que
+// usa OneDrive para sincronizar) y el filtrado por nombre se hace acá
+// mismo, en el servidor — encuentra TODOS los tipos de archivo por igual,
+// no solo los que el índice de búsqueda de Microsoft decide mostrar.
+//
+// Tiene un tope de tiempo (no de páginas) para no pasarse del límite de
+// ejecución de Vercel: si tu OneDrive es tan grande que no alcanza a
+// recorrerse completo, corta ahí y avisa que el listado quedó incompleto,
+// en vez de fallar o demorarse indefinidamente.
+const PRESUPUESTO_TIEMPO_DELTA_MS = 22000;
+const MAX_PAGINAS_DELTA = 60;
+
+async function listarTodosLosArchivos(accessToken) {
+  const archivos = [];
+  let url = 'https://graph.microsoft.com/v1.0/me/drive/root/delta?$select=id,name,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,file,folder,parentReference,deleted';
+  let paginas = 0;
+  const inicio = Date.now();
+  let completo = true;
+
+  while (url && paginas < MAX_PAGINAS_DELTA) {
+    if (Date.now() - inicio > PRESUPUESTO_TIEMPO_DELTA_MS) {
+      completo = false;
+      break;
+    }
+    const resp = await fetchConTimeout(url, { headers: { Authorization: `Bearer ${accessToken}` } }, 8000);
+    if (!resp.ok) {
+      const detalle = await resp.text().catch(() => '');
+      throw new Error(`OneDrive respondió con error (${resp.status}) al listar archivos. ${detalle.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    (data.value || []).forEach((item) => {
+      if (!item.folder && !item.deleted) archivos.push(item);
+    });
+    url = data['@odata.nextLink'] || null;
+    paginas += 1;
+  }
+  if (url) completo = false; // quedaron páginas sin recorrer por el tope de páginas
+
+  return { archivos, completo };
+}
+
 async function handlerBuscarOneDrive(req, res) {
   const q = (req.query.q || '').trim();
   if (!q) {
@@ -177,18 +223,23 @@ async function handlerBuscarOneDrive(req, res) {
     const accessToken = await getMicrosoftAccessToken(
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
-    const resp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(q)}')?$top=25&$select=id,name,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,file,folder,parentReference`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-      8000
-    );
-    if (!resp.ok) {
-      const detalle = await resp.text().catch(() => '');
-      return res.status(502).json({ error: `OneDrive respondió con error (${resp.status}).`, detalle });
-    }
-    const data = await resp.json();
-    const resultados = (data.value || [])
-      .filter((item) => !item.folder) // solo archivos, no carpetas
+    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+
+    // Búsqueda por nombre: cada palabra escrita debe aparecer en el nombre
+    // del archivo (sin importar mayúsculas/tildes), así "informe 2026"
+    // encuentra "Informe_Financiero_2026.pdf".
+    const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const palabrasNorm = palabras.map(normalizar);
+    const coincide = (nombre) => {
+      const nombreNorm = normalizar(nombre);
+      return palabrasNorm.every((p) => nombreNorm.includes(p));
+    };
+
+    const resultados = todos
+      .filter((item) => coincide(item.name))
+      .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+      .slice(0, 50)
       .map((item) => {
         const tipo = tipoDeArchivo(item.name);
         return {
@@ -206,7 +257,11 @@ async function handlerBuscarOneDrive(req, res) {
           analizable: /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name),
         };
       });
-    return res.status(200).json({ ok: true, resultados });
+    return res.status(200).json({
+      ok: true,
+      resultados,
+      avisoIncompleto: completo ? null : 'Tienes tantos archivos en OneDrive que no alcancé a revisarlos todos en el tiempo disponible — puede que falten algunos resultados. Prueba con un término más específico.',
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error buscando en OneDrive.' });
   }
@@ -387,8 +442,8 @@ async function handlerAnalisisOneDrive(req, res) {
 // índice vectorial real si algún día hace falta preguntar "a ciegas" sobre
 // todo un OneDrive de miles de archivos.
 
-const MAX_CANDIDATOS_RAG = 6;
-const MAX_CARACTERES_POR_DOC = 3500;
+const MAX_CANDIDATOS_RAG = 12;
+const MAX_CARACTERES_POR_DOC = 3000;
 
 async function handlerPreguntarOneDrive(req, res) {
   const pregunta = (req.query.q || '').trim();
@@ -400,24 +455,40 @@ async function handlerPreguntarOneDrive(req, res) {
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
 
-    const buscarResp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(pregunta)}')?$top=15&$select=id,name,webUrl,size,file,folder`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-      8000
-    );
-    if (!buscarResp.ok) {
-      const detalle = await buscarResp.text().catch(() => '');
-      return res.status(502).json({ error: `OneDrive respondió con error (${buscarResp.status}) al buscar documentos.`, detalle });
-    }
-    const buscarData = await buscarResp.json();
-    const candidatos = (buscarData.value || [])
-      .filter((item) => !item.folder && /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name))
-      .slice(0, MAX_CANDIDATOS_RAG);
+    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+    const analizables = todos.filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name));
+
+    // Igual que en handlerBuscarOneDrive, esto no depende del buscador de
+    // Graph (poco confiable en cuentas personales) — se puntúa cada archivo
+    // por cuántas palabras de la pregunta aparecen en su nombre o carpeta,
+    // sin exigir que coincidan todas (una pregunta en lenguaje natural rara
+    // vez calza palabra por palabra con el nombre del archivo).
+    const STOPWORDS = new Set(['que', 'los', 'las', 'del', 'con', 'para', 'por', 'una', 'unos', 'unas', 'como', 'donde', 'cuando', 'sobre', 'este', 'esta', 'estos', 'estas', 'tiene', 'tengo']);
+    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const palabrasClave = normalizar(pregunta)
+      .split(/[^a-z0-9áéíóúñ]+/i)
+      .filter((p) => p.length > 2 && !STOPWORDS.has(p));
+
+    const puntuados = analizables.map((item) => {
+      const textoBusqueda = normalizar(`${item.name} ${item.parentReference?.path || ''}`);
+      const puntaje = palabrasClave.reduce((acc, p) => acc + (textoBusqueda.includes(p) ? 1 : 0), 0);
+      return { item, puntaje };
+    });
+
+    const conCoincidencias = puntuados.filter((p) => p.puntaje > 0);
+    const listaOrdenada = (conCoincidencias.length > 0 ? conCoincidencias : puntuados)
+      .sort((a, b) => b.puntaje - a.puntaje || new Date(b.item.lastModifiedDateTime) - new Date(a.item.lastModifiedDateTime));
+
+    const candidatos = listaOrdenada.slice(0, MAX_CANDIDATOS_RAG).map((p) => p.item);
+    // Si nada calzó por nombre, se avisa que la respuesta es sobre los
+    // documentos más recientes en vez de fingir que encontró justo lo que
+    // se preguntó.
+    const usoRespaldo = conCoincidencias.length === 0;
 
     if (candidatos.length === 0) {
       return res.status(200).json({
         ok: true,
-        respuesta: 'No encontré documentos relacionados con esa pregunta en tu OneDrive (o son de un formato que todavía no puedo leer: Word, Excel, CSV, texto o PDF).',
+        respuesta: 'No tienes documentos en formatos que pueda leer todavía (Word, Excel, CSV, texto o PDF).',
         fuentes: [],
       });
     }
@@ -486,6 +557,11 @@ async function handlerPreguntarOneDrive(req, res) {
       ok: true,
       respuesta,
       fuentes: documentosValidos.map((d) => ({ nombre: d.nombre, webUrl: d.webUrl })),
+      avisoRespaldo: usoRespaldo
+        ? 'Ningún nombre de archivo coincidió con tu pregunta, así que esta respuesta se basa en tus documentos más recientes — puede no ser justo lo que buscabas.'
+        : (!completo
+          ? 'Tienes tantos archivos en OneDrive que no alcancé a revisarlos todos — la respuesta puede no incluir algún documento relevante que quedó fuera.'
+          : null),
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error respondiendo la pregunta.' });
