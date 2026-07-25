@@ -568,7 +568,119 @@ async function handlerPreguntarOneDrive(req, res) {
   }
 }
 
+// --- Comparador de CV contra un aviso de trabajo ---
+//
+// Encuentra tus CVs en OneDrive (por nombre de archivo), les extrae el
+// texto, y le pide al modelo que los evalúe contra el aviso que pegaste:
+// cuál calza mejor, por qué, y una sugerencia de ajustes. Mismo mecanismo
+// de extracción que usan "¿Análisis?" y "Preguntar a mis documentos".
+
+const MAX_CVS_COMPARAR = 15;
+const MAX_CARACTERES_CV = 2500;
+
+async function handlerCompararCV(req, res) {
+  const aviso = (req.body?.aviso || '').trim();
+  if (!aviso) {
+    return res.status(400).json({ error: 'Falta el texto del aviso de trabajo.' });
+  }
+  try {
+    const accessToken = await getMicrosoftAccessToken(
+      'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
+    );
+
+    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const esCV = (nombre) => {
+      const n = normalizar(nombre);
+      return (n.includes('cv') || n.includes('resume')) && /\.(docx|pdf|txt)$/i.test(nombre);
+    };
+
+    const candidatos = todos
+      .filter((item) => esCV(item.name))
+      .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+      .slice(0, MAX_CVS_COMPARAR);
+
+    if (candidatos.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        evaluacion: 'No encontré archivos que parezcan CVs en tu OneDrive (busco archivos Word, PDF o texto con "CV" o "resume" en el nombre).',
+        cvs: [],
+      });
+    }
+
+    const cvsConTexto = await Promise.all(candidatos.map(async (item) => {
+      try {
+        const contenidoResp = await fetchConTimeout(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          15000
+        );
+        if (!contenidoResp.ok) return null;
+        const buffer = Buffer.from(await contenidoResp.arrayBuffer());
+        const texto = await extraerTexto(item.name, buffer);
+        if (!texto || !texto.trim()) return null;
+        return { nombre: item.name, webUrl: item.webUrl, texto: texto.slice(0, MAX_CARACTERES_CV) };
+      } catch {
+        return null;
+      }
+    }));
+
+    const cvsValidos = cvsConTexto.filter(Boolean);
+    if (cvsValidos.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        evaluacion: 'Encontré CVs, pero no pude leer el contenido de ninguno (formato dañado o PDF escaneado sin texto).',
+        cvs: candidatos.map((c) => ({ nombre: c.name, webUrl: c.webUrl })),
+      });
+    }
+
+    const contexto = cvsValidos
+      .map((d, i) => `[CV ${i + 1}: "${d.nombre}"]\n${d.texto}`)
+      .join('\n\n---\n\n');
+
+    const { GROQ_API_KEY } = process.env;
+    if (!GROQ_API_KEY) throw new Error('Falta la variable de entorno GROQ_API_KEY.');
+
+    const respGroq = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un reclutador ejecutivo experto en perfiles senior/C-level. Te doy un aviso de trabajo y varias versiones de CV de la misma persona. Para cada CV, dale un puntaje del 1 al 10 de qué tan bien calza con el aviso y una razón breve (1-2 líneas). Al final, indica claramente cuál CV es el mejor punto de partida para postular a ESTE aviso específico, y da 2-3 sugerencias concretas de ajuste (qué destacar, qué agregar o reordenar) para mejorar el calce. Responde en español, directo, en formato de lista. Usa el nombre real de cada CV (no "CV 1").',
+          },
+          { role: 'user', content: `AVISO DE TRABAJO:\n${aviso.slice(0, 4000)}\n\n${contexto}` },
+        ],
+        temperature: 0.3,
+        max_tokens: 900,
+      }),
+    }, 25000);
+
+    if (!respGroq.ok) {
+      const detalle = await respGroq.text().catch(() => '');
+      throw new Error(`No se pudo generar la evaluación (${respGroq.status}): ${detalle.slice(0, 200)}`);
+    }
+    const dataGroq = await respGroq.json();
+    const evaluacion = dataGroq.choices?.[0]?.message?.content?.trim() || 'No se generó una respuesta.';
+
+    return res.status(200).json({
+      ok: true,
+      evaluacion,
+      cvs: cvsValidos.map((d) => ({ nombre: d.nombre, webUrl: d.webUrl })),
+      avisoIncompleto: completo ? null : 'Tienes tantos archivos en OneDrive que puede que no haya revisado todas tus versiones de CV.',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error comparando los CVs.' });
+  }
+}
+
 export default async function handler(req, res) {
+  if (req.method === 'POST' && req.query.tipo === 'onedrive-comparar-cv') {
+    return handlerCompararCV(req, res);
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
