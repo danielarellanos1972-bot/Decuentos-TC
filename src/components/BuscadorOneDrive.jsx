@@ -18,6 +18,7 @@ export default function BuscadorOneDrive() {
   const [errorRag, setErrorRag] = useState(null);
 
   const [aviso, setAviso] = useState('');
+  const [filtroArchivo, setFiltroArchivo] = useState('');
   const [evaluacionCV, setEvaluacionCV] = useState(null);
   const [cvsUsados, setCvsUsados] = useState(null);
   const [comparando, setComparando] = useState(false);
@@ -34,7 +35,7 @@ export default function BuscadorOneDrive() {
     fetch('/api/unread-mail?tipo=onedrive-comparar-cv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ aviso: texto }),
+      body: JSON.stringify({ aviso: texto, filtro: filtroArchivo.trim() }),
     })
       .then((r) => r.json())
       .then((d) => {
@@ -239,6 +240,18 @@ export default function BuscadorOneDrive() {
       {modo === 'comparar' && (
         <>
         <form style={styles.formFila} onSubmit={compararCV}>
+          <input
+            style={styles.input}
+            type="text"
+            placeholder="Nombre del archivo a usar (opcional) — ej: CV_Daniel_Arellano_Gerente_Operaciones"
+            value={filtroArchivo}
+            onChange={(e) => setFiltroArchivo(e.target.value)}
+          />
+        </form>
+        <p style={styles.subCampo}>
+          Déjalo vacío para que busque automáticamente entre tus archivos que parecen CV. Si escribes algo, solo compara los archivos cuyo nombre lo contenga.
+        </p>
+        <form style={styles.formFila} onSubmit={compararCV}>
           <textarea
             style={styles.textarea}
             placeholder="Pega aquí el texto del aviso de trabajo (cargo, requisitos, descripción)..."
@@ -335,6 +348,7 @@ const styles = {
   section: { marginTop: '32px' },
   h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 4px', color: 'var(--paper-050)' },
   sub: { fontSize: '0.85rem', color: 'var(--paper-100)', margin: '0 0 14px' },
+  subCampo: { fontSize: '0.72rem', color: 'var(--paper-100)', margin: '-2px 0 10px' },
   formFila: { display: 'flex', gap: '8px' },
   input: {
     flex: 1, background: 'var(--navy-900)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
