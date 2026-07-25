@@ -371,6 +371,127 @@ async function handlerAnalisisOneDrive(req, res) {
   }
 }
 
+// --- Modo "Preguntar a mis documentos" (RAG) ---
+//
+// No arma un índice permanente de todo OneDrive (eso sería sobre-ingeniería
+// para el volumen de documentos de una persona, y necesitaría una base de
+// datos vectorial aparte). En vez de eso, arma el contexto "al vuelo" cada
+// vez que se pregunta:
+//   1. Busca en OneDrive los archivos candidatos para la pregunta.
+//   2. Le extrae el texto a los que sean legibles (mismo extractor que usa
+//      el botón "¿Análisis?").
+//   3. Le pide al modelo que responda SOLO con lo que encuentre en esos
+//      documentos, citando de cuál salió cada dato.
+// Funciona bien cuando la búsqueda por palabra clave ya acerca los
+// documentos correctos (algunas decenas como mucho); no reemplaza un
+// índice vectorial real si algún día hace falta preguntar "a ciegas" sobre
+// todo un OneDrive de miles de archivos.
+
+const MAX_CANDIDATOS_RAG = 6;
+const MAX_CARACTERES_POR_DOC = 3500;
+
+async function handlerPreguntarOneDrive(req, res) {
+  const pregunta = (req.query.q || '').trim();
+  if (!pregunta) {
+    return res.status(400).json({ error: 'Falta la pregunta (parámetro "q").' });
+  }
+  try {
+    const accessToken = await getMicrosoftAccessToken(
+      'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
+    );
+
+    const buscarResp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(pregunta)}')?$top=15&$select=id,name,webUrl,size,file,folder`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (!buscarResp.ok) {
+      const detalle = await buscarResp.text().catch(() => '');
+      return res.status(502).json({ error: `OneDrive respondió con error (${buscarResp.status}) al buscar documentos.`, detalle });
+    }
+    const buscarData = await buscarResp.json();
+    const candidatos = (buscarData.value || [])
+      .filter((item) => !item.folder && /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name))
+      .slice(0, MAX_CANDIDATOS_RAG);
+
+    if (candidatos.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        respuesta: 'No encontré documentos relacionados con esa pregunta en tu OneDrive (o son de un formato que todavía no puedo leer: Word, Excel, CSV, texto o PDF).',
+        fuentes: [],
+      });
+    }
+
+    // Descarga y extrae el texto de cada candidato en paralelo. Un documento
+    // que falle (dañado, PDF escaneado, etc.) simplemente se descarta en vez
+    // de tumbar toda la respuesta.
+    const documentos = await Promise.all(candidatos.map(async (item) => {
+      try {
+        const contenidoResp = await fetchConTimeout(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          15000
+        );
+        if (!contenidoResp.ok) return null;
+        const buffer = Buffer.from(await contenidoResp.arrayBuffer());
+        const texto = await extraerTexto(item.name, buffer);
+        if (!texto || !texto.trim()) return null;
+        return { nombre: item.name, webUrl: item.webUrl, texto: texto.slice(0, MAX_CARACTERES_POR_DOC) };
+      } catch {
+        return null;
+      }
+    }));
+
+    const documentosValidos = documentos.filter(Boolean);
+    if (documentosValidos.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        respuesta: 'Encontré documentos relacionados, pero no pude leer el contenido de ninguno (pueden ser PDFs escaneados sin texto, u otro problema de formato).',
+        fuentes: candidatos.map((c) => ({ nombre: c.name, webUrl: c.webUrl })),
+      });
+    }
+
+    const contexto = documentosValidos
+      .map((d, i) => `[Documento ${i + 1}: "${d.nombre}"]\n${d.texto}`)
+      .join('\n\n---\n\n');
+
+    const { GROQ_API_KEY } = process.env;
+    if (!GROQ_API_KEY) throw new Error('Falta la variable de entorno GROQ_API_KEY.');
+
+    const respGroq = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un asistente que responde preguntas SOLO con la información de los documentos que se te entregan a continuación. Si la respuesta no está en los documentos, dilo claramente en vez de inventarla. Responde en español, directo, y menciona entre paréntesis de qué documento sale cada dato importante (usa el nombre del documento, no "Documento 1").',
+          },
+          { role: 'user', content: `Documentos:\n\n${contexto}\n\nPregunta: ${pregunta}` },
+        ],
+        temperature: 0.2,
+        max_tokens: 600,
+      }),
+    }, 25000);
+
+    if (!respGroq.ok) {
+      const detalle = await respGroq.text().catch(() => '');
+      throw new Error(`No se pudo generar la respuesta (${respGroq.status}): ${detalle.slice(0, 200)}`);
+    }
+    const dataGroq = await respGroq.json();
+    const respuesta = dataGroq.choices?.[0]?.message?.content?.trim() || 'No se generó una respuesta.';
+
+    return res.status(200).json({
+      ok: true,
+      respuesta,
+      fuentes: documentosValidos.map((d) => ({ nombre: d.nombre, webUrl: d.webUrl })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error respondiendo la pregunta.' });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -382,6 +503,10 @@ export default async function handler(req, res) {
 
   if (req.query.tipo === 'onedrive-analisis') {
     return handlerAnalisisOneDrive(req, res);
+  }
+
+  if (req.query.tipo === 'onedrive-preguntar') {
+    return handlerPreguntarOneDrive(req, res);
   }
 
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=180');
