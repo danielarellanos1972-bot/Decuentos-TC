@@ -5,6 +5,7 @@ export default function BuscadorOneDrive() {
   const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar'
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
+  const [avisoIncompleto, setAvisoIncompleto] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState(null);
   const [archivoAnalisis, setArchivoAnalisis] = useState(null);
@@ -12,6 +13,7 @@ export default function BuscadorOneDrive() {
   const [pregunta, setPregunta] = useState('');
   const [respuestaRag, setRespuestaRag] = useState(null);
   const [fuentesRag, setFuentesRag] = useState(null);
+  const [avisoRag, setAvisoRag] = useState(null);
   const [preguntando, setPreguntando] = useState(false);
   const [errorRag, setErrorRag] = useState(null);
 
@@ -23,6 +25,7 @@ export default function BuscadorOneDrive() {
     setErrorRag(null);
     setRespuestaRag(null);
     setFuentesRag(null);
+    setAvisoRag(null);
     fetch(`/api/unread-mail?tipo=onedrive-preguntar&q=${encodeURIComponent(texto)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -30,6 +33,7 @@ export default function BuscadorOneDrive() {
         else {
           setRespuestaRag(d.respuesta);
           setFuentesRag(d.fuentes || []);
+          setAvisoRag(d.avisoRespaldo || null);
         }
       })
       .catch(() => setErrorRag('No se pudo generar la respuesta.'))
@@ -43,11 +47,15 @@ export default function BuscadorOneDrive() {
     setBuscando(true);
     setError(null);
     setResultados(null);
+    setAvisoIncompleto(null);
     fetch(`/api/unread-mail?tipo=onedrive&q=${encodeURIComponent(termino)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error);
-        else setResultados(d.resultados);
+        else {
+          setResultados(d.resultados);
+          setAvisoIncompleto(d.avisoIncompleto || null);
+        }
       })
       .catch(() => setError('No se pudo buscar en OneDrive.'))
       .finally(() => setBuscando(false));
@@ -125,6 +133,7 @@ export default function BuscadorOneDrive() {
             </p>
             <button style={styles.botonCerrarResultados} onClick={() => setResultados(null)}>✕ Cerrar resultados</button>
           </div>
+          {avisoIncompleto && <p style={styles.ragAviso}>⚠️ {avisoIncompleto}</p>}
           {resultados.map((r, i) => (
             <div key={i} style={styles.fila}>
               <span style={{ ...styles.icono, background: r.tipoColor }}>{r.tipoIcono}</span>
@@ -171,6 +180,7 @@ export default function BuscadorOneDrive() {
               <p style={styles.contador}>Respuesta</p>
               <button style={styles.botonCerrarResultados} onClick={() => { setRespuestaRag(null); setFuentesRag(null); }}>✕ Cerrar</button>
             </div>
+            {avisoRag && <p style={styles.ragAviso}>⚠️ {avisoRag}</p>}
             {respuestaRag.split('\n').filter(Boolean).map((linea, i) => (
               <p key={i} style={styles.ragLinea}>{linea}</p>
             ))}
@@ -332,6 +342,10 @@ const styles = {
     padding: '16px', marginTop: '16px',
   },
   ragLinea: { fontSize: '0.9rem', color: 'var(--paper-050)', lineHeight: 1.5, margin: '0 0 10px' },
+  ragAviso: {
+    fontSize: '0.78rem', color: 'var(--cal-red)', background: 'var(--navy-800)',
+    border: '1px solid var(--navy-700)', borderRadius: '8px', padding: '8px 10px', margin: '0 0 12px',
+  },
   ragFuentes: { marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--navy-700)' },
   ragFuenteItem: {
     display: 'block', fontSize: '0.8rem', color: 'var(--gold-500)', fontWeight: 600,
