@@ -581,73 +581,101 @@ const MAX_CARACTERES_CV = 2500;
 async function handlerCompararCV(req, res) {
   const aviso = (req.body?.aviso || '').trim();
   const filtro = (req.body?.filtro || '').trim();
+  const archivoSubidoBase64 = req.body?.archivoBase64;
+  const archivoSubidoNombre = req.body?.archivoNombre;
   if (!aviso) {
     return res.status(400).json({ error: 'Falta el texto del aviso de trabajo.' });
   }
   try {
-    const accessToken = await getMicrosoftAccessToken(
-      'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
-    );
+    let cvsValidos;
+    let avisoIncompleto = null;
 
-    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
-    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-    // Si Nano especificó qué archivo(s) usar, se respeta eso tal cual (solo
-    // filtra por nombre, sin exigir "cv"/"resume" — puede ser cualquier
-    // documento). Si no especificó nada, se mantiene la detección automática
-    // de archivos que parecen CV.
-    let candidatos;
-    if (filtro) {
-      const filtroNorm = normalizar(filtro);
-      candidatos = todos
-        .filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name) && normalizar(item.name).includes(filtroNorm))
-        .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
-        .slice(0, MAX_CVS_COMPARAR);
-    } else {
-      const esCV = (nombre) => {
-        const n = normalizar(nombre);
-        return (n.includes('cv') || n.includes('resume')) && /\.(docx|pdf|txt)$/i.test(nombre);
-      };
-      candidatos = todos
-        .filter((item) => esCV(item.name))
-        .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
-        .slice(0, MAX_CVS_COMPARAR);
-    }
-
-    if (candidatos.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        evaluacion: filtro
-          ? `No encontré ningún archivo cuyo nombre contenga "${filtro}".`
-          : 'No encontré archivos que parezcan CVs en tu OneDrive (busco archivos Word, PDF o texto con "CV" o "resume" en el nombre). Prueba escribiendo el nombre exacto en el campo de arriba.',
-        cvs: [],
-      });
-    }
-
-    const cvsConTexto = await Promise.all(candidatos.map(async (item) => {
+    if (archivoSubidoBase64 && archivoSubidoNombre) {
+      // Camino directo: el archivo se subió desde el computador, no hace
+      // falta tocar OneDrive en absoluto para esta comparación — más
+      // rápido y sin depender de que el listado de archivos alcance a
+      // encontrarlo.
       try {
-        const contenidoResp = await fetchConTimeout(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-          15000
-        );
-        if (!contenidoResp.ok) return null;
-        const buffer = Buffer.from(await contenidoResp.arrayBuffer());
-        const texto = await extraerTexto(item.name, buffer);
-        if (!texto || !texto.trim()) return null;
-        return { nombre: item.name, webUrl: item.webUrl, texto: texto.slice(0, MAX_CARACTERES_CV) };
-      } catch {
-        return null;
+        const buffer = Buffer.from(archivoSubidoBase64, 'base64');
+        const texto = await extraerTexto(archivoSubidoNombre, buffer);
+        if (!texto || !texto.trim()) {
+          return res.status(200).json({
+            ok: true,
+            evaluacion: 'No pude leer el contenido de ese archivo (puede ser un PDF escaneado sin texto, o un formato dañado).',
+            cvs: [],
+          });
+        }
+        cvsValidos = [{ nombre: archivoSubidoNombre, webUrl: null, texto: texto.slice(0, MAX_CARACTERES_CV) }];
+      } catch (err) {
+        return res.status(200).json({
+          ok: true,
+          evaluacion: `No pude leer el contenido de ese archivo: ${err.message}`,
+          cvs: [],
+        });
       }
-    }));
+    } else {
+      // Camino de siempre: buscar en OneDrive (por nombre exacto si se dio
+      // un filtro, o auto-detectando archivos que parecen CV si no).
+      const accessToken = await getMicrosoftAccessToken(
+        'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
+      );
+      const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+      const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    const cvsValidos = cvsConTexto.filter(Boolean);
-    if (cvsValidos.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        evaluacion: 'Encontré CVs, pero no pude leer el contenido de ninguno (formato dañado o PDF escaneado sin texto).',
-        cvs: candidatos.map((c) => ({ nombre: c.name, webUrl: c.webUrl })),
-      });
+      let candidatos;
+      if (filtro) {
+        const filtroNorm = normalizar(filtro);
+        candidatos = todos
+          .filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name) && normalizar(item.name).includes(filtroNorm))
+          .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+          .slice(0, MAX_CVS_COMPARAR);
+      } else {
+        const esCV = (nombre) => {
+          const n = normalizar(nombre);
+          return (n.includes('cv') || n.includes('resume')) && /\.(docx|pdf|txt)$/i.test(nombre);
+        };
+        candidatos = todos
+          .filter((item) => esCV(item.name))
+          .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
+          .slice(0, MAX_CVS_COMPARAR);
+      }
+
+      if (candidatos.length === 0) {
+        return res.status(200).json({
+          ok: true,
+          evaluacion: filtro
+            ? `No encontré ningún archivo cuyo nombre contenga "${filtro}" — si sabes que existe, prueba subiéndolo directo con el botón "Subir archivo" en vez de buscarlo por nombre.`
+            : 'No encontré archivos que parezcan CVs en tu OneDrive (busco archivos Word, PDF o texto con "CV" o "resume" en el nombre). Prueba escribiendo el nombre exacto, o sube el archivo directo.',
+          cvs: [],
+        });
+      }
+
+      const cvsConTexto = await Promise.all(candidatos.map(async (item) => {
+        try {
+          const contenidoResp = await fetchConTimeout(
+            `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+            15000
+          );
+          if (!contenidoResp.ok) return null;
+          const buffer = Buffer.from(await contenidoResp.arrayBuffer());
+          const texto = await extraerTexto(item.name, buffer);
+          if (!texto || !texto.trim()) return null;
+          return { nombre: item.name, webUrl: item.webUrl, texto: texto.slice(0, MAX_CARACTERES_CV) };
+        } catch {
+          return null;
+        }
+      }));
+
+      cvsValidos = cvsConTexto.filter(Boolean);
+      if (cvsValidos.length === 0) {
+        return res.status(200).json({
+          ok: true,
+          evaluacion: 'Encontré archivos, pero no pude leer el contenido de ninguno (formato dañado o PDF escaneado sin texto).',
+          cvs: candidatos.map((c) => ({ nombre: c.name, webUrl: c.webUrl })),
+        });
+      }
+      avisoIncompleto = completo ? null : 'Tienes tantos archivos en OneDrive que puede que no haya revisado todas tus versiones de CV.';
     }
 
     const contexto = cvsValidos
@@ -665,7 +693,7 @@ async function handlerCompararCV(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'Eres un reclutador ejecutivo experto en perfiles senior/C-level. Te doy un aviso de trabajo y varias versiones de CV de la misma persona. Para cada CV, dale un puntaje del 1 al 10 de qué tan bien calza con el aviso y una razón breve (1-2 líneas). Al final, indica claramente cuál CV es el mejor punto de partida para postular a ESTE aviso específico, y da 2-3 sugerencias concretas de ajuste (qué destacar, qué agregar o reordenar) para mejorar el calce. Responde en español, directo, en formato de lista. Usa el nombre real de cada CV (no "CV 1").',
+            content: 'Eres un reclutador ejecutivo experto en perfiles senior/C-level. Te doy un aviso de trabajo y una o varias versiones de CV de la misma persona. Para cada CV, dale un puntaje del 1 al 10 de qué tan bien calza con el aviso y una razón breve (1-2 líneas). Al final, indica claramente cuál CV es el mejor punto de partida para postular a ESTE aviso específico (o, si solo hay uno, evalúalo igual y da tu veredicto), y da 2-3 sugerencias concretas de ajuste (qué destacar, qué agregar o reordenar) para mejorar el calce. Responde en español, directo, en formato de lista. Usa el nombre real de cada CV (no "CV 1").',
           },
           { role: 'user', content: `AVISO DE TRABAJO:\n${aviso.slice(0, 4000)}\n\n${contexto}` },
         ],
@@ -685,7 +713,7 @@ async function handlerCompararCV(req, res) {
       ok: true,
       evaluacion,
       cvs: cvsValidos.map((d) => ({ nombre: d.nombre, webUrl: d.webUrl })),
-      avisoIncompleto: completo ? null : 'Tienes tantos archivos en OneDrive que puede que no haya revisado todas tus versiones de CV.',
+      avisoIncompleto,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error comparando los CVs.' });
