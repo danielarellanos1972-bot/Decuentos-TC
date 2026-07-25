@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export default function BuscadorOneDrive() {
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState(null);
+  const [archivoAnalisis, setArchivoAnalisis] = useState(null);
 
   function buscar(e) {
     e.preventDefault();
@@ -21,6 +23,20 @@ export default function BuscadorOneDrive() {
       })
       .catch(() => setError('No se pudo buscar en OneDrive.'))
       .finally(() => setBuscando(false));
+  }
+
+  function analizar(r) {
+    setArchivoAnalisis({ nombre: r.nombre, tipoIcono: r.tipoIcono, tipoColor: r.tipoColor, cargando: true });
+    fetch(`/api/unread-mail?tipo=onedrive-analisis&id=${encodeURIComponent(r.id)}`)
+      .then((res) => res.json())
+      .then((d) => {
+        if (d.error) {
+          setArchivoAnalisis((prev) => ({ ...prev, cargando: false, error: d.error }));
+        } else {
+          setArchivoAnalisis((prev) => ({ ...prev, cargando: false, ...d }));
+        }
+      })
+      .catch(() => setArchivoAnalisis((prev) => ({ ...prev, cargando: false, error: 'No se pudo analizar el archivo.' })));
   }
 
   function formatearFecha(iso) {
@@ -54,11 +70,14 @@ export default function BuscadorOneDrive() {
 
       {resultados && (
         <div style={styles.resultadosWrap}>
-          <p style={styles.contador}>
-            {resultados.length === 0 ? 'Sin resultados.' : `${resultados.length} resultado${resultados.length === 1 ? '' : 's'}`}
-          </p>
+          <div style={styles.contadorFila}>
+            <p style={styles.contador}>
+              {resultados.length === 0 ? 'Sin resultados.' : `${resultados.length} resultado${resultados.length === 1 ? '' : 's'}`}
+            </p>
+            <button style={styles.botonCerrarResultados} onClick={() => setResultados(null)}>✕ Cerrar resultados</button>
+          </div>
           {resultados.map((r, i) => (
-            <a key={i} href={r.webUrl} target="_blank" rel="noreferrer" style={styles.fila}>
+            <div key={i} style={styles.fila}>
               <span style={{ ...styles.icono, background: r.tipoColor }}>{r.tipoIcono}</span>
               <span style={styles.filaTexto}>
                 <span style={styles.nombre}>{r.nombre}</span>
@@ -69,10 +88,64 @@ export default function BuscadorOneDrive() {
                   {r.modificado && <span> · {formatearFecha(r.modificado)}</span>}
                 </span>
               </span>
-              <span style={styles.abrir}>Abrir ↗</span>
-            </a>
+              {r.analizable && (
+                <button style={styles.botonAnalisis} onClick={() => analizar(r)}>¿Análisis?</button>
+              )}
+              <a href={r.webUrl} target="_blank" rel="noreferrer" style={styles.abrir}>Abrir ↗</a>
+            </div>
           ))}
         </div>
+      )}
+
+      {archivoAnalisis && createPortal(
+        <div style={styles.modalFondo} onClick={() => setArchivoAnalisis(null)}>
+          <div style={styles.modalCaja} onClick={(e) => e.stopPropagation()}>
+            <button style={styles.modalCerrar} onClick={() => setArchivoAnalisis(null)} aria-label="Cerrar">✕</button>
+
+            <div style={styles.modalEncabezado}>
+              <span style={{ ...styles.icono, background: archivoAnalisis.tipoColor }}>{archivoAnalisis.tipoIcono}</span>
+              <p style={styles.modalNombre}>{archivoAnalisis.nombre}</p>
+            </div>
+
+            {archivoAnalisis.cargando && <p style={styles.modalCargando}>Leyendo el archivo y generando el resumen…</p>}
+            {archivoAnalisis.error && <p style={styles.error}>{archivoAnalisis.error}</p>}
+
+            {archivoAnalisis.datosGenerales && (
+              <div style={styles.modalDatos}>
+                <p style={styles.modalSeccion}>Datos generales</p>
+                {archivoAnalisis.datosGenerales.autor && (
+                  <p style={styles.modalDato}><strong>Autor:</strong> {archivoAnalisis.datosGenerales.autor}</p>
+                )}
+                {archivoAnalisis.datosGenerales.ultimaEdicionPor && (
+                  <p style={styles.modalDato}><strong>Última edición por:</strong> {archivoAnalisis.datosGenerales.ultimaEdicionPor}</p>
+                )}
+                {archivoAnalisis.datosGenerales.creado && (
+                  <p style={styles.modalDato}><strong>Creado:</strong> {formatearFecha(archivoAnalisis.datosGenerales.creado)}</p>
+                )}
+                {archivoAnalisis.datosGenerales.modificado && (
+                  <p style={styles.modalDato}><strong>Modificado:</strong> {formatearFecha(archivoAnalisis.datosGenerales.modificado)}</p>
+                )}
+                {archivoAnalisis.datosGenerales.tamano && (
+                  <p style={styles.modalDato}><strong>Tamaño:</strong> {archivoAnalisis.datosGenerales.tamano}</p>
+                )}
+              </div>
+            )}
+
+            {archivoAnalisis.disponible === false && (
+              <p style={styles.modalMotivo}>{archivoAnalisis.motivo}</p>
+            )}
+
+            {archivoAnalisis.resumen && (
+              <div style={styles.modalResumen}>
+                <p style={styles.modalSeccion}>Resumen ejecutivo</p>
+                {archivoAnalisis.resumen.split('\n').filter(Boolean).map((linea, i) => (
+                  <p key={i} style={styles.modalLinea}>{linea.replace(/^[-•*]\s*/, '')}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
     </section>
   );
@@ -94,11 +167,16 @@ const styles = {
   },
   error: { fontSize: '0.8rem', color: 'var(--cal-red)', marginTop: '10px' },
   resultadosWrap: { marginTop: '16px' },
-  contador: { fontSize: '0.75rem', color: 'var(--paper-100)', margin: '0 0 10px' },
+  contadorFila: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
+  contador: { fontSize: '0.75rem', color: 'var(--paper-100)', margin: 0 },
+  botonCerrarResultados: {
+    background: 'transparent', border: '1px solid var(--navy-700)', color: 'var(--paper-100)',
+    borderRadius: '999px', padding: '4px 12px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+  },
   fila: {
-    display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none',
+    display: 'flex', alignItems: 'flex-start', gap: '12px', textDecoration: 'none', flexWrap: 'wrap',
     background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '10px',
-    padding: '12px 14px', marginBottom: '8px',
+    padding: '12px 14px', marginBottom: '8px', overflow: 'hidden', boxSizing: 'border-box', width: '100%',
   },
   icono: {
     flexShrink: 0, width: '34px', height: '34px', borderRadius: '8px', display: 'flex',
@@ -109,7 +187,44 @@ const styles = {
     fontSize: '0.9rem', fontWeight: 600, color: 'var(--paper-050)',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  meta: { fontSize: '0.72rem', color: 'var(--paper-100)' },
+  meta: { fontSize: '0.72rem', color: 'var(--paper-100)', wordBreak: 'break-word', overflowWrap: 'anywhere' },
   etiqueta: { fontWeight: 700 },
   abrir: { flexShrink: 0, fontSize: '0.75rem', color: 'var(--gold-500)', fontWeight: 600, whiteSpace: 'nowrap' },
+  botonAnalisis: {
+    flexShrink: 0, background: 'var(--navy-800)', border: '1px solid var(--navy-700)', color: 'var(--paper-050)',
+    borderRadius: '999px', padding: '5px 12px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+  },
+  modalFondo: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px',
+  },
+  modalCaja: {
+    position: 'relative', background: 'var(--navy-900)', border: '1px solid var(--navy-700)',
+    borderRadius: '18px', padding: '26px 22px 20px', width: '100%', maxWidth: '480px',
+    maxHeight: '85vh', overflowY: 'auto', color: 'var(--paper-100)', fontFamily: 'var(--font-body)',
+  },
+  modalCerrar: {
+    position: 'absolute', top: '14px', right: '14px', background: 'var(--navy-800)',
+    border: '1px solid var(--navy-700)', color: 'var(--paper-100)', borderRadius: '50%',
+    width: '28px', height: '28px', fontSize: '0.85rem', cursor: 'pointer',
+  },
+  modalEncabezado: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' },
+  modalNombre: { fontSize: '1.05rem', fontWeight: 700, color: 'var(--paper-050)', margin: 0 },
+  modalCargando: { fontSize: '0.85rem', color: 'var(--paper-100)' },
+  modalDatos: { marginBottom: '16px' },
+  modalSeccion: {
+    fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 700,
+    color: 'var(--gold-500)', margin: '0 0 8px',
+  },
+  modalDato: { fontSize: '0.82rem', color: 'var(--paper-100)', margin: '3px 0' },
+  modalMotivo: {
+    fontSize: '0.82rem', color: 'var(--paper-100)', background: 'var(--navy-800)',
+    border: '1px solid var(--navy-700)', borderRadius: '10px', padding: '10px 12px',
+  },
+  modalResumen: {
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', borderRadius: '12px', padding: '14px 16px',
+  },
+  modalLinea: {
+    fontSize: '0.85rem', color: 'var(--paper-050)', margin: '0 0 8px', paddingLeft: '14px', position: 'relative',
+  },
 };
