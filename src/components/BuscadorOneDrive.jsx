@@ -15,6 +15,7 @@ export default function BuscadorOneDrive() {
   const [fuentesRag, setFuentesRag] = useState(null);
   const [avisoRag, setAvisoRag] = useState(null);
   const [diagnosticoAgenda, setDiagnosticoAgenda] = useState(null);
+  const [historial, setHistorial] = useState([]);
   const [correoExpandido, setCorreoExpandido] = useState(null);
   const [preguntando, setPreguntando] = useState(false);
   const [errorRag, setErrorRag] = useState(null);
@@ -76,6 +77,17 @@ export default function BuscadorOneDrive() {
       .finally(() => setComparando(false));
   }
 
+  function cambiarModo(nuevoModo) {
+    setModo(nuevoModo);
+    // Cambiar de modo empieza una conversación nueva — no tendría sentido
+    // que "Preguntar correos" recordara el hilo de "Preguntar agenda".
+    setHistorial([]);
+    setRespuestaRag(null);
+    setFuentesRag(null);
+    setAvisoRag(null);
+    setDiagnosticoAgenda(null);
+  }
+
   function preguntar(e) {
     e.preventDefault();
     const texto = pregunta.trim();
@@ -87,7 +99,11 @@ export default function BuscadorOneDrive() {
     setAvisoRag(null);
     setDiagnosticoAgenda(null);
     const fuente = modo === 'preguntar-documentos' ? 'documentos' : modo === 'preguntar-correos' ? 'correos' : modo === 'preguntar-agenda' ? 'agenda' : 'todos';
-    fetch(`/api/unread-mail?tipo=onedrive-preguntar&fuente=${fuente}&q=${encodeURIComponent(texto)}`)
+    fetch(`/api/unread-mail?tipo=onedrive-preguntar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: texto, fuente, historial }),
+    })
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setErrorRag(d.error);
@@ -96,6 +112,11 @@ export default function BuscadorOneDrive() {
           setFuentesRag(d.fuentes || []);
           setAvisoRag(d.avisoRespaldo || null);
           setDiagnosticoAgenda(d.diagnosticoAgenda || null);
+          // Se guarda este intercambio para que la próxima pregunta en esta
+          // misma sesión pueda referirse a él ("¿y cuál es el más
+          // reciente?") sin tener que repetir el contexto.
+          setHistorial((prev) => [...prev, { pregunta: texto, respuesta: d.respuesta }]);
+          setPregunta('');
         }
       })
       .catch(() => setErrorRag('No se pudo generar la respuesta.'))
@@ -160,31 +181,31 @@ export default function BuscadorOneDrive() {
       <div style={styles.toggleFila}>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'buscar' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('buscar')}
+          onClick={() => cambiarModo('buscar')}
         >
           🔍 Buscar archivos
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'preguntar-documentos' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('preguntar-documentos')}
+          onClick={() => cambiarModo('preguntar-documentos')}
         >
           📄 Preguntar documentos
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'preguntar-correos' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('preguntar-correos')}
+          onClick={() => cambiarModo('preguntar-correos')}
         >
           ✉️ Preguntar correos
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'preguntar-agenda' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('preguntar-agenda')}
+          onClick={() => cambiarModo('preguntar-agenda')}
         >
           📅 Preguntar agenda
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'comparar' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('comparar')}
+          onClick={() => cambiarModo('comparar')}
         >
           🎯 Comparar CV con un aviso
         </button>
@@ -256,11 +277,22 @@ export default function BuscadorOneDrive() {
 
         {errorRag && <p style={styles.error}>{errorRag}</p>}
 
+        {historial.length > 1 && (
+          <div style={styles.historialCaja}>
+            {historial.slice(0, -1).map((h, i) => (
+              <div key={i} style={styles.historialTurno}>
+                <p style={styles.historialPregunta}>Tú: {h.pregunta}</p>
+                <p style={styles.historialRespuesta}>{h.respuesta}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {respuestaRag && (
           <div style={styles.ragCaja}>
             <div style={styles.contadorFila}>
               <p style={styles.contador}>Respuesta</p>
-              <button style={styles.botonCerrarResultados} onClick={() => { setRespuestaRag(null); setFuentesRag(null); }}>✕ Cerrar</button>
+              <button style={styles.botonCerrarResultados} onClick={() => { setRespuestaRag(null); setFuentesRag(null); setHistorial([]); }}>✕ Cerrar</button>
             </div>
             {avisoRag && <p style={styles.ragAviso}>⚠️ {avisoRag}</p>}
             {respuestaRag.split('\n').filter(Boolean).map((linea, i) => (
@@ -558,6 +590,13 @@ const styles = {
     border: '1px solid var(--navy-700)', borderRadius: '8px', padding: '8px 10px', margin: '0 0 12px',
   },
   ragDiagnostico: { fontSize: '0.68rem', color: 'var(--paper-100)', marginTop: '10px', fontFamily: 'var(--font-mono)' },
+  historialCaja: { margin: '10px 0 0' },
+  historialTurno: {
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '10px',
+    padding: '8px 12px', marginBottom: '6px', opacity: 0.75,
+  },
+  historialPregunta: { fontSize: '0.75rem', fontWeight: 700, color: 'var(--paper-100)', margin: '0 0 3px' },
+  historialRespuesta: { fontSize: '0.75rem', color: 'var(--paper-100)', margin: 0, lineHeight: 1.4 },
   ragFuentes: { marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--navy-700)' },
   ragFuenteItem: {
     display: 'block', fontSize: '0.8rem', color: 'var(--gold-500)', fontWeight: 600,
