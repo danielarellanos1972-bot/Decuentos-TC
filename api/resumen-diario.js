@@ -479,12 +479,16 @@ function extraerArrayJSON(texto) {
   return texto.slice(inicio, fin + 1);
 }
 
-async function redactarPosts(seleccion) {
+// Antes se le pedía a la IA un JSON con las 4 noticias en un solo bloque —
+// un modelo chico como este casi nunca arma JSON perfecto cuando el texto
+// es largo y lleva comillas/emojis/saltos de línea, y si UNA noticia salía
+// mal, se perdían las cuatro. Ahora se hace una llamada por noticia, en
+// texto plano con dos etiquetas simples (RESUMEN: / POST:) — no hay nada
+// que "romper" a nivel de sintaxis, y si una falla, las demás igual salen
+// bien.
+async function redactarUnPost(noticia) {
   const { GROQ_API_KEY } = process.env;
-  const listado = seleccion
-    .map((n, i) => `${i}. [${n.categoria} — ${n.fuente}, ${n.pubDate}] ${n.titulo}\nLink: ${n.link}`)
-    .join('\n\n')
-    .slice(0, 1500);
+  const prompt = `Noticia: ${noticia.titulo}\nFuente: ${noticia.fuente}, ${noticia.pubDate}\nCategoría: ${noticia.categoria}`;
 
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -494,32 +498,36 @@ async function redactarPosts(seleccion) {
       messages: [
         {
           role: 'system',
-          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Para cada noticia que te paso, redacta un post de LinkedIn: arranca directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cierre con una reflexión de 1-2 líneas + una pregunta que invite al debate, y 5-7 hashtags al final. Máximo 150 palabras, texto corrido, sin bullets ni asteriscos. También un resumen de 2 oraciones con datos concretos. Responde ÚNICAMENTE con el JSON array, sin ninguna palabra antes ni después, sin explicar lo que hiciste, sin encabezados ni comentarios — la respuesta completa debe empezar con "[" y terminar con "]". Formato exacto: [{"indice": 0, "resumen": "...", "post": "..."}]',
+          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Te doy una noticia. Responde en texto plano, exactamente en este formato, sin nada más antes ni después:\nRESUMEN: (2 oraciones con datos concretos)\nPOST: (el post de LinkedIn)\n\nEl post debe: arrancar directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), tener 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), dar una perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cerrar con una reflexión de 1-2 líneas + una pregunta que invite al debate, y terminar con 5-7 hashtags. Máximo 150 palabras, texto corrido, sin bullets ni asteriscos.',
         },
-        { role: 'user', content: listado },
+        { role: 'user', content: prompt },
       ],
-      temperature: 0.4,
-      max_tokens: 2000,
+      temperature: 0.5,
+      max_tokens: 500,
     }),
-  }, 25000);
-  if (!resp.ok) {
-    const detalle = (await resp.text().catch(() => '')).slice(0, 300);
-    return { posts: [], diagnostico: `Groq respondió con error ${resp.status}: ${detalle}` };
-  }
+  }, 20000);
+
+  if (!resp.ok) return { resumen: null, post: null, error: `Groq respondió ${resp.status}` };
+
   const data = await resp.json();
-  const texto = data.choices?.[0]?.message?.content?.trim() || '[]';
-  try {
-    const resultado = JSON.parse(extraerArrayJSON(texto));
-    if (!Array.isArray(resultado) || resultado.length === 0) {
-      return { posts: [], diagnostico: `El modelo respondió sin posts utilizables. Texto crudo: ${texto.slice(0, 1200)}` };
-    }
-    return { posts: resultado, diagnostico: null };
-  } catch (err) {
-    // Se devuelve el texto crudo — así se puede ver exactamente qué
-    // contestó el modelo (ej. si se cortó a la mitad del JSON) en vez de
-    // tener que ir a buscarlo en los logs de Vercel.
-    return { posts: [], diagnostico: `No se pudo leer la respuesta como JSON (${err.message}). Texto crudo: ${texto.slice(0, 1200)}` };
-  }
+  const texto = data.choices?.[0]?.message?.content?.trim() || '';
+  const matchResumen = texto.match(/RESUMEN:\s*([\s\S]*?)(?=\n?POST:|$)/i);
+  const matchPost = texto.match(/POST:\s*([\s\S]*)/i);
+  const resumen = matchResumen ? matchResumen[1].trim() : null;
+  const post = matchPost ? matchPost[1].trim() : (resumen ? null : texto.trim() || null);
+
+  if (!post) return { resumen, post: null, error: `Respuesta sin el formato esperado. Texto: ${texto.slice(0, 300)}` };
+  return { resumen: resumen || '(sin resumen)', post, error: null };
+}
+
+async function redactarPosts(seleccion) {
+  const resultados = await Promise.all(seleccion.map((n) => redactarUnPost(n)));
+  const posts = resultados.map((r, i) => ({ indice: i, resumen: r.resumen, post: r.post }));
+  const fallidos = resultados.filter((r) => r.error);
+  const diagnostico = fallidos.length > 0
+    ? `${fallidos.length}/${resultados.length} posts no se pudieron generar. Ej: ${fallidos[0].error}`
+    : null;
+  return { posts, diagnostico };
 }
 
 // --- 3. Página HTML interactiva (tarjetas por categoría, botón para
