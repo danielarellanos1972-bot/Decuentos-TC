@@ -50,7 +50,7 @@ export default function NewsReportPanel() {
 
 const styles = {
   section: {
-    background: 'var(--paper-050)', border: '1px solid var(--navy-700)', borderRadius: '16px',
+    background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '16px',
     padding: '20px', marginTop: '20px',
   },
   h2: { fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--gold-500)', margin: '0 0 6px' },
