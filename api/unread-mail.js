@@ -729,7 +729,7 @@ async function handlerPreguntarOneDrive(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'Eres un asistente que responde preguntas SOLO con la información que se te entrega a continuación — puede venir de documentos de OneDrive, correos (Gmail/Outlook) o eventos de calendario (Google/Outlook). Si la respuesta no está ahí, dilo claramente en vez de inventarla. Responde en español, directo, y menciona entre paréntesis de dónde sale cada dato importante (ej: "(correo de Gmail: Reunión Alejandro Aguilera)" o "(documento: CV_Daniel...)" o "(agenda: Reunión networking, 24 jul)").',
+            content: 'Eres un asistente que responde preguntas usando la información que se te entrega a continuación — puede venir de documentos de OneDrive, correos (Gmail/Outlook) o eventos de calendario (Google/Outlook). Si algo de lo entregado es relevante para la pregunta, aunque no calce perfecto en cada detalle (por ejemplo la fecha exacta), menciónalo igual y aclara en qué no calza — no digas "no hay información" si hay algo relacionado en el material entregado. Solo di que no encontraste nada si de verdad no hay ningún dato relacionado. Responde en español, directo, y menciona entre paréntesis de dónde sale cada dato importante (ej: "(correo de Gmail: Reunión Alejandro Aguilera)" o "(documento: CV_Daniel...)" o "(agenda: Reunión networking, 24 jul)").',
           },
           { role: 'user', content: `${contexto}\n\nPregunta: ${pregunta}` },
         ],
