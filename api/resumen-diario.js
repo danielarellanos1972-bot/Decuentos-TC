@@ -461,11 +461,22 @@ async function seleccionarNoticias(candidatas) {
   const data = await resp.json();
   const texto = data.choices?.[0]?.message?.content?.trim() || '[]';
   try {
-    const limpio = texto.replace(/```json|```/g, '').trim();
-    return JSON.parse(limpio);
+    return JSON.parse(extraerArrayJSON(texto));
   } catch {
     return [];
   }
+}
+
+// El modelo a veces obedece "responde SOLO con JSON" solo a medias — devuelve
+// el array correcto pero le agrega una frase explicativa antes o después, y
+// eso rompe un JSON.parse estricto. En vez de exigir que la respuesta entera
+// sea JSON válido, se busca el primer "[" y el último "]" y se intenta leer
+// solo esa porción — tolera el texto de sobra sin perder los datos.
+function extraerArrayJSON(texto) {
+  const inicio = texto.indexOf('[');
+  const fin = texto.lastIndexOf(']');
+  if (inicio === -1 || fin === -1 || fin < inicio) return texto;
+  return texto.slice(inicio, fin + 1);
 }
 
 async function redactarPosts(seleccion) {
@@ -483,11 +494,11 @@ async function redactarPosts(seleccion) {
       messages: [
         {
           role: 'system',
-          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Para cada noticia que te paso, redacta un post de LinkedIn: arranca directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cierre con una reflexión de 1-2 líneas + una pregunta que invite al debate, y 5-7 hashtags al final. Máximo 150 palabras, texto corrido, sin bullets ni asteriscos. También un resumen de 2 oraciones con datos concretos. Responde SOLO con un JSON array en este formato exacto, sin texto adicional ni explicaciones antes o después: [{"indice": 0, "resumen": "...", "post": "..."}]',
+          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Para cada noticia que te paso, redacta un post de LinkedIn: arranca directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cierre con una reflexión de 1-2 líneas + una pregunta que invite al debate, y 5-7 hashtags al final. Máximo 150 palabras, texto corrido, sin bullets ni asteriscos. También un resumen de 2 oraciones con datos concretos. Responde ÚNICAMENTE con el JSON array, sin ninguna palabra antes ni después, sin explicar lo que hiciste, sin encabezados ni comentarios — la respuesta completa debe empezar con "[" y terminar con "]". Formato exacto: [{"indice": 0, "resumen": "...", "post": "..."}]',
         },
         { role: 'user', content: listado },
       ],
-      temperature: 0.5,
+      temperature: 0.4,
       max_tokens: 2000,
     }),
   }, 25000);
@@ -498,17 +509,16 @@ async function redactarPosts(seleccion) {
   const data = await resp.json();
   const texto = data.choices?.[0]?.message?.content?.trim() || '[]';
   try {
-    const limpio = texto.replace(/```json|```/g, '').trim();
-    const resultado = JSON.parse(limpio);
+    const resultado = JSON.parse(extraerArrayJSON(texto));
     if (!Array.isArray(resultado) || resultado.length === 0) {
-      return { posts: [], diagnostico: `El modelo respondió sin posts utilizables. Texto crudo: ${texto.slice(0, 500)}` };
+      return { posts: [], diagnostico: `El modelo respondió sin posts utilizables. Texto crudo: ${texto.slice(0, 1200)}` };
     }
     return { posts: resultado, diagnostico: null };
   } catch (err) {
     // Se devuelve el texto crudo — así se puede ver exactamente qué
     // contestó el modelo (ej. si se cortó a la mitad del JSON) en vez de
     // tener que ir a buscarlo en los logs de Vercel.
-    return { posts: [], diagnostico: `No se pudo leer la respuesta como JSON (${err.message}). Texto crudo: ${texto.slice(0, 500)}` };
+    return { posts: [], diagnostico: `No se pudo leer la respuesta como JSON (${err.message}). Texto crudo: ${texto.slice(0, 1200)}` };
   }
 }
 
