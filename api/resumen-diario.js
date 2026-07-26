@@ -431,7 +431,7 @@ async function buscarNoticiasFuente(fuente) {
 // --- 2. Selección + redacción con Groq (dos llamadas separadas para no
 // pasarse del límite de tokens por minuto del modelo liviano) ---
 
-const MAX_NOTICIAS = 8;
+const MAX_NOTICIAS = 5;
 
 async function seleccionarNoticias(candidatas) {
   const { GROQ_API_KEY } = process.env;
@@ -439,7 +439,7 @@ async function seleccionarNoticias(candidatas) {
   const listado = candidatas
     .map((c, i) => `${i}. [${c.fuente}] ${c.titulo} (${c.pubDate})`)
     .join('\n')
-    .slice(0, 4500);
+    .slice(0, 3000);
 
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -473,7 +473,7 @@ async function redactarPosts(seleccion) {
   const listado = seleccion
     .map((n, i) => `${i}. [${n.categoria} — ${n.fuente}, ${n.pubDate}] ${n.titulo}\nLink: ${n.link}`)
     .join('\n\n')
-    .slice(0, 3500);
+    .slice(0, 2200);
 
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -488,7 +488,7 @@ async function redactarPosts(seleccion) {
         { role: 'user', content: listado },
       ],
       temperature: 0.5,
-      max_tokens: 3800,
+      max_tokens: 2200,
     }),
   }, 25000);
   if (!resp.ok) throw new Error(`Groq (redacción) respondió ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 200)}`);
