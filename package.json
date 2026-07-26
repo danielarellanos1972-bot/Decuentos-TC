@@ -13,7 +13,8 @@
     "react-dom": "^18.3.1",
     "mammoth": "^1.8.0",
     "xlsx": "^0.18.5",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
