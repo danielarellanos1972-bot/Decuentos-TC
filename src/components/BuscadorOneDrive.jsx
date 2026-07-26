@@ -14,6 +14,7 @@ export default function BuscadorOneDrive() {
   const [respuestaRag, setRespuestaRag] = useState(null);
   const [fuentesRag, setFuentesRag] = useState(null);
   const [avisoRag, setAvisoRag] = useState(null);
+  const [diagnosticoAgenda, setDiagnosticoAgenda] = useState(null);
   const [preguntando, setPreguntando] = useState(false);
   const [errorRag, setErrorRag] = useState(null);
 
@@ -83,6 +84,7 @@ export default function BuscadorOneDrive() {
     setRespuestaRag(null);
     setFuentesRag(null);
     setAvisoRag(null);
+    setDiagnosticoAgenda(null);
     fetch(`/api/unread-mail?tipo=onedrive-preguntar&q=${encodeURIComponent(texto)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -91,6 +93,7 @@ export default function BuscadorOneDrive() {
           setRespuestaRag(d.respuesta);
           setFuentesRag(d.fuentes || []);
           setAvisoRag(d.avisoRespaldo || null);
+          setDiagnosticoAgenda(d.diagnosticoAgenda || null);
         }
       })
       .catch(() => setErrorRag('No se pudo generar la respuesta.'))
@@ -262,6 +265,11 @@ export default function BuscadorOneDrive() {
                   );
                 })}
               </div>
+            )}
+            {diagnosticoAgenda && (
+              <p style={styles.ragDiagnostico}>
+                🔧 Agenda — Google: {diagnosticoAgenda.google} · Outlook: {diagnosticoAgenda.outlook}
+              </p>
             )}
           </div>
         )}
@@ -509,6 +517,7 @@ const styles = {
     fontSize: '0.78rem', color: 'var(--cal-red)', background: 'var(--navy-800)',
     border: '1px solid var(--navy-700)', borderRadius: '8px', padding: '8px 10px', margin: '0 0 12px',
   },
+  ragDiagnostico: { fontSize: '0.68rem', color: 'var(--paper-100)', marginTop: '10px', fontFamily: 'var(--font-mono)' },
   ragFuentes: { marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--navy-700)' },
   ragFuenteItem: {
     display: 'block', fontSize: '0.8rem', color: 'var(--gold-500)', fontWeight: 600,
