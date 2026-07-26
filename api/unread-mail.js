@@ -560,12 +560,18 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
   const desde = new Date(Date.UTC(anioActual, 0, 1, 0, 0, 0));
   const hasta = new Date(Date.UTC(anioActual, 11, 31, 23, 59, 59));
   const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const calza = (texto) => {
+  // Puntaje por cuántas palabras clave calzan (no solo sí/no) — así un
+  // evento que calza con 3 palabras ("reunión", "alejandro", "aguilera")
+  // le gana el cupo a uno que solo calza con 1 ("reunión" a secas).
+  const puntaje = (texto) => {
     const n = normalizar(texto || '');
-    return palabrasClave.some((p) => n.includes(p));
+    return palabrasClave.reduce((acc, p) => acc + (n.includes(p) ? 1 : 0), 0);
   };
 
-  const eventos = [];
+  const puntuados = [];
+  // Diagnóstico visible en la propia respuesta — para no depender de ir a
+  // buscar en los logs de Vercel cada vez que algo falla en silencio.
+  const diagnostico = { google: 'no intentado', outlook: 'no intentado' };
 
   try {
     const accessToken = await getGoogleAccessToken();
@@ -580,18 +586,29 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
     );
     if (resp.ok) {
       const data = await resp.json();
+      let coincidencias = 0;
       (data.items || []).forEach((e) => {
-        if (calza(`${e.summary} ${e.description || ''}`)) {
-          eventos.push({
-            tipo: 'Agenda', fuente: 'Google',
-            nombre: e.summary || '(sin título)',
-            texto: `Fecha: ${e.start?.dateTime || e.start?.date}. ${e.description || ''}`.slice(0, 500),
-            webUrl: e.htmlLink || null,
+        const p = puntaje(`${e.summary} ${e.description || ''}`);
+        if (p > 0) {
+          coincidencias += 1;
+          puntuados.push({
+            puntaje: p,
+            evento: {
+              tipo: 'Agenda', fuente: 'Google',
+              nombre: e.summary || '(sin título)',
+              texto: `Fecha: ${e.start?.dateTime || e.start?.date}. ${e.description || ''}`.slice(0, 500),
+              webUrl: e.htmlLink || null,
+            },
           });
         }
       });
+      diagnostico.google = `OK: ${data.items?.length || 0} eventos revisados, ${coincidencias} calzaron`;
+    } else {
+      diagnostico.google = `Error ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 150)}`;
     }
-  } catch { /* si falla esta fuente, se sigue con las demás */ }
+  } catch (err) {
+    diagnostico.google = `Excepción: ${err.message}`;
+  }
 
   try {
     const accessToken = await getMicrosoftAccessToken();
@@ -603,20 +620,36 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
     );
     if (resp.ok) {
       const data = await resp.json();
+      let coincidencias = 0;
       (data.value || []).forEach((e) => {
-        if (calza(`${e.subject} ${e.bodyPreview || ''}`)) {
-          eventos.push({
-            tipo: 'Agenda', fuente: 'Outlook',
-            nombre: e.subject || '(sin título)',
-            texto: `Fecha: ${e.start?.dateTime}. ${e.bodyPreview || ''}`.slice(0, 500),
-            webUrl: e.webLink || null,
+        const p = puntaje(`${e.subject} ${e.bodyPreview || ''}`);
+        if (p > 0) {
+          coincidencias += 1;
+          puntuados.push({
+            puntaje: p,
+            evento: {
+              tipo: 'Agenda', fuente: 'Outlook',
+              nombre: e.subject || '(sin título)',
+              texto: `Fecha: ${e.start?.dateTime}. ${e.bodyPreview || ''}`.slice(0, 500),
+              webUrl: e.webLink || null,
+            },
           });
         }
       });
+      diagnostico.outlook = `OK: ${data.value?.length || 0} eventos revisados, ${coincidencias} calzaron`;
+    } else {
+      diagnostico.outlook = `Error ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 150)}`;
     }
-  } catch { /* idem */ }
+  } catch (err) {
+    diagnostico.outlook = `Excepción: ${err.message}`;
+  }
 
-  return eventos.slice(0, MAX_EVENTOS_RAG);
+  const eventos = puntuados
+    .sort((a, b) => b.puntaje - a.puntaje)
+    .slice(0, MAX_EVENTOS_RAG)
+    .map((p) => p.evento);
+
+  return { eventos, diagnostico };
 }
 
 async function handlerPreguntarOneDrive(req, res) {
@@ -643,7 +676,7 @@ async function handlerPreguntarOneDrive(req, res) {
     // concreto). Acá se le da menos presupuesto de tiempo a OneDrive
     // específicamente, porque además hay que descargar el contenido de los
     // documentos candidatos después, y todavía queda la llamada a la IA.
-    const [{ archivos: todos, completo }, correosGmail, correosOutlook, eventos] = await Promise.all([
+    const [{ archivos: todos, completo }, correosGmail, correosOutlook, { eventos, diagnostico: diagnosticoAgenda }] = await Promise.all([
       listarTodosLosArchivos(accessToken, 12000),
       buscarCorreosGmail(palabrasClave),
       buscarCorreosOutlook(palabrasClave),
@@ -754,6 +787,7 @@ async function handlerPreguntarOneDrive(req, res) {
         : (!completo
           ? 'Tienes tantos archivos en OneDrive que no alcancé a revisarlos todos — la respuesta puede no incluir algún documento relevante que quedó fuera.'
           : null),
+      diagnosticoAgenda,
     });
   } catch (err) {
     console.error('handlerPreguntarOneDrive error:', err);
