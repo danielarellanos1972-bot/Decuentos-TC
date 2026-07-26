@@ -185,7 +185,7 @@ function formatoTamano(bytes) {
 const PRESUPUESTO_TIEMPO_DELTA_MS = 22000;
 const MAX_PAGINAS_DELTA = 60;
 
-async function listarTodosLosArchivos(accessToken) {
+async function listarTodosLosArchivos(accessToken, presupuestoMs = PRESUPUESTO_TIEMPO_DELTA_MS) {
   const archivos = [];
   let url = 'https://graph.microsoft.com/v1.0/me/drive/root/delta?$select=id,name,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,file,folder,parentReference,deleted';
   let paginas = 0;
@@ -193,7 +193,7 @@ async function listarTodosLosArchivos(accessToken) {
   let completo = true;
 
   while (url && paginas < MAX_PAGINAS_DELTA) {
-    if (Date.now() - inicio > PRESUPUESTO_TIEMPO_DELTA_MS) {
+    if (Date.now() - inicio > presupuestoMs) {
       completo = false;
       break;
     }
@@ -607,7 +607,28 @@ async function handlerPreguntarOneDrive(req, res) {
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
 
-    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+    const STOPWORDS = new Set(['que', 'los', 'las', 'del', 'con', 'para', 'por', 'una', 'unos', 'unas', 'como', 'donde', 'cuando', 'sobre', 'este', 'esta', 'estos', 'estas', 'tiene', 'tengo']);
+    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const palabrasClave = normalizar(pregunta)
+      .split(/[^a-z0-9áéíóúñ]+/i)
+      .filter((p) => p.length > 2 && !STOPWORDS.has(p));
+
+    // Las cuatro búsquedas arrancan a la vez en vez de una tras otra — con
+    // el listado de OneDrive solo, que ya puede tomar hasta 22 segundos por
+    // sí solo, hacer todo en cadena se pasaba del límite de 30 segundos que
+    // permite Vercel y la función terminaba cayéndose (por eso el error
+    // genérico "No se pudo generar la respuesta" en vez de un mensaje
+    // concreto). Acá se le da menos presupuesto de tiempo a OneDrive
+    // específicamente, porque además hay que descargar el contenido de los
+    // documentos candidatos después, y todavía queda la llamada a la IA.
+    const [{ archivos: todos, completo }, correosGmail, correosOutlook, eventos] = await Promise.all([
+      listarTodosLosArchivos(accessToken, 12000),
+      buscarCorreosGmail(pregunta),
+      buscarCorreosOutlook(pregunta),
+      buscarEventosRelevantes(pregunta, palabrasClave),
+    ]);
+    const correos = [...correosGmail, ...correosOutlook];
+
     const analizables = todos.filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name));
 
     // Igual que en handlerBuscarOneDrive, esto no depende del buscador de
@@ -615,12 +636,6 @@ async function handlerPreguntarOneDrive(req, res) {
     // por cuántas palabras de la pregunta aparecen en su nombre o carpeta,
     // sin exigir que coincidan todas (una pregunta en lenguaje natural rara
     // vez calza palabra por palabra con el nombre del archivo).
-    const STOPWORDS = new Set(['que', 'los', 'las', 'del', 'con', 'para', 'por', 'una', 'unos', 'unas', 'como', 'donde', 'cuando', 'sobre', 'este', 'esta', 'estos', 'estas', 'tiene', 'tengo']);
-    const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const palabrasClave = normalizar(pregunta)
-      .split(/[^a-z0-9áéíóúñ]+/i)
-      .filter((p) => p.length > 2 && !STOPWORDS.has(p));
-
     const puntuados = analizables.map((item) => {
       const textoBusqueda = normalizar(`${item.name} ${item.parentReference?.path || ''}`);
       const puntaje = palabrasClave.reduce((acc, p) => acc + (textoBusqueda.includes(p) ? 1 : 0), 0);
@@ -644,7 +659,7 @@ async function handlerPreguntarOneDrive(req, res) {
         const contenidoResp = await fetchConTimeout(
           `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
-          15000
+          10000
         );
         if (!contenidoResp.ok) return null;
         const buffer = Buffer.from(await contenidoResp.arrayBuffer());
@@ -657,15 +672,6 @@ async function handlerPreguntarOneDrive(req, res) {
     }));
 
     const documentosValidos = documentos.filter(Boolean);
-
-    // Correos y agenda se buscan en paralelo con la lectura de documentos —
-    // no dependen unos de otros, así que no hay razón para hacerlo en serie.
-    const [correosGmail, correosOutlook, eventos] = await Promise.all([
-      buscarCorreosGmail(pregunta),
-      buscarCorreosOutlook(pregunta),
-      buscarEventosRelevantes(pregunta, palabrasClave),
-    ]);
-    const correos = [...correosGmail, ...correosOutlook];
 
     if (documentosValidos.length === 0 && correos.length === 0 && eventos.length === 0) {
       return res.status(200).json({
@@ -723,6 +729,7 @@ async function handlerPreguntarOneDrive(req, res) {
           : null),
     });
   } catch (err) {
+    console.error('handlerPreguntarOneDrive error:', err);
     return res.status(500).json({ error: err.message || 'Error respondiendo la pregunta.' });
   }
 }
