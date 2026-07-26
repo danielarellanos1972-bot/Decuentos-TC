@@ -183,7 +183,7 @@ function formatoTamano(bytes) {
 // recorrerse completo, corta ahí y avisa que el listado quedó incompleto,
 // en vez de fallar o demorarse indefinidamente.
 const PRESUPUESTO_TIEMPO_DELTA_MS = 22000;
-const MAX_PAGINAS_DELTA = 60;
+const MAX_PAGINAS_DELTA = 150;
 
 async function listarTodosLosArchivos(accessToken, presupuestoMs = PRESUPUESTO_TIEMPO_DELTA_MS) {
   const archivos = [];
@@ -223,7 +223,7 @@ async function handlerBuscarOneDrive(req, res) {
     const accessToken = await getMicrosoftAccessToken(
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
-    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken, 45000);
 
     // Búsqueda por nombre: cada palabra escrita debe aparecer en el nombre
     // del archivo (sin importar mayúsculas/tildes), así "informe 2026"
@@ -1071,7 +1071,7 @@ async function handlerCompararCV(req, res) {
       const accessToken = await getMicrosoftAccessToken(
         'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
       );
-      const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken);
+      const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken, 35000);
       const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
       let candidatos;
