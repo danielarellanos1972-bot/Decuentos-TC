@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 export default function BuscadorOneDrive() {
   const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar-documentos' | 'preguntar-correos' | 'preguntar-agenda' | 'comparar'
   const [q, setQ] = useState('');
-  const [carpeta, setCarpeta] = useState('Personales_Principal');
+  const [carpeta, setCarpeta] = useState('Personales_Pricipal');
   const [resultados, setResultados] = useState(null);
   const [avisoIncompleto, setAvisoIncompleto] = useState(null);
   const [buscando, setBuscando] = useState(false);
@@ -225,7 +225,7 @@ export default function BuscadorOneDrive() {
         />
       </form>
       <p style={styles.subCampo}>
-        Por defecto busca dentro de "Personales_Principal" (mucho más rápido que revisar todo el OneDrive). Cámbiala si el archivo está en otra carpeta, o bórrala del todo para buscar en todas partes.
+        Por defecto busca dentro de "Personales_Pricipal" y todas sus subcarpetas (mucho más rápido que revisar todo el OneDrive) — no hace falta escribir la ruta completa, solo el nombre de la carpeta principal. Cámbiala si el archivo está en otra carpeta, o bórrala del todo para buscar en todas partes.
       </p>
       <form style={styles.formFila} onSubmit={buscar}>
         <input
