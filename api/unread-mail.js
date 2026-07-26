@@ -445,6 +445,158 @@ async function handlerAnalisisOneDrive(req, res) {
 const MAX_CANDIDATOS_RAG = 12;
 const MAX_CARACTERES_POR_DOC = 3000;
 
+// --- Fuentes adicionales para "Preguntar a mis documentos": correos y agenda ---
+//
+// A diferencia de OneDrive, la búsqueda nativa de Gmail y de correo en
+// Microsoft Graph SÍ es confiable (es la limitación de /search que era
+// específica de archivos en OneDrive personal, no de correo) — así que acá
+// sí se usa el buscador de cada servicio directamente, en vez de listar
+// todo a mano.
+
+const MAX_CORREOS_RAG = 4;
+const MAX_EVENTOS_RAG = 6;
+const MAX_CARACTERES_CORREO = 1800;
+
+function extraerCuerpoGmail(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return Buffer.from(payload.body.data, 'base64').toString('utf8');
+  }
+  if (payload.parts) {
+    // Prioriza texto plano; si no hay, cae a HTML y le saca las etiquetas.
+    const plano = payload.parts.find((p) => p.mimeType === 'text/plain');
+    if (plano?.body?.data) return Buffer.from(plano.body.data, 'base64').toString('utf8');
+    for (const parte of payload.parts) {
+      const texto = extraerCuerpoGmail(parte);
+      if (texto) return texto;
+    }
+  }
+  if (payload.mimeType === 'text/html' && payload.body?.data) {
+    const html = Buffer.from(payload.body.data, 'base64').toString('utf8');
+    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  }
+  return '';
+}
+
+async function buscarCorreosGmail(pregunta) {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    const resp = await fetchConTimeout(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(pregunta)}&maxResults=${MAX_CORREOS_RAG}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const ids = (data.messages || []).slice(0, MAX_CORREOS_RAG);
+    const detalles = await Promise.all(ids.map(async (m) => {
+      const r = await fetchConTimeout(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+        8000
+      );
+      if (!r.ok) return null;
+      const d = await r.json();
+      const headers = d.payload?.headers || [];
+      const asunto = headers.find((h) => h.name === 'Subject')?.value || '(sin asunto)';
+      const de = (headers.find((h) => h.name === 'From')?.value || '').replace(/<.*>/, '').trim();
+      const cuerpo = extraerCuerpoGmail(d.payload).slice(0, MAX_CARACTERES_CORREO);
+      if (!cuerpo.trim()) return null;
+      return { tipo: 'Correo', fuente: 'Gmail', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: null };
+    }));
+    return detalles.filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function buscarCorreosOutlook(pregunta) {
+  try {
+    const accessToken = await getMicrosoftAccessToken();
+    const resp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(pregunta)}"&$top=${MAX_CORREOS_RAG}&$select=subject,from,receivedDateTime,body,webLink`,
+      { headers: { Authorization: `Bearer ${accessToken}`, ConsistencyLevel: 'eventual' } },
+      8000
+    );
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.value || []).map((m) => {
+      const asunto = m.subject || '(sin asunto)';
+      const de = m.from?.emailAddress?.name || m.from?.emailAddress?.address || '';
+      const htmlOTexto = m.body?.content || '';
+      const cuerpo = htmlOTexto.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_CARACTERES_CORREO);
+      if (!cuerpo) return null;
+      return { tipo: 'Correo', fuente: 'Outlook', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: m.webLink || null };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function buscarEventosRelevantes(pregunta, palabrasClave) {
+  const ahora = new Date();
+  const desde = new Date(ahora.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const hasta = new Date(ahora.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const calza = (texto) => {
+    const n = normalizar(texto || '');
+    return palabrasClave.some((p) => n.includes(p));
+  };
+
+  const eventos = [];
+
+  try {
+    const accessToken = await getGoogleAccessToken();
+    const params = new URLSearchParams({
+      timeMin: desde.toISOString(), timeMax: hasta.toISOString(),
+      singleEvents: 'true', orderBy: 'startTime', maxResults: '100',
+    });
+    const resp = await fetchConTimeout(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      (data.items || []).forEach((e) => {
+        if (calza(`${e.summary} ${e.description || ''}`)) {
+          eventos.push({
+            tipo: 'Agenda', fuente: 'Google',
+            nombre: e.summary || '(sin título)',
+            texto: `Fecha: ${e.start?.dateTime || e.start?.date}. ${e.description || ''}`.slice(0, 500),
+            webUrl: e.htmlLink || null,
+          });
+        }
+      });
+    }
+  } catch { /* si falla esta fuente, se sigue con las demás */ }
+
+  try {
+    const accessToken = await getMicrosoftAccessToken();
+    const params = new URLSearchParams({ startDateTime: desde.toISOString(), endDateTime: hasta.toISOString(), $top: '100' });
+    const resp = await fetchConTimeout(
+      `https://graph.microsoft.com/v1.0/me/calendarView?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      8000
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      (data.value || []).forEach((e) => {
+        if (calza(`${e.subject} ${e.bodyPreview || ''}`)) {
+          eventos.push({
+            tipo: 'Agenda', fuente: 'Outlook',
+            nombre: e.subject || '(sin título)',
+            texto: `Fecha: ${e.start?.dateTime}. ${e.bodyPreview || ''}`.slice(0, 500),
+            webUrl: e.webLink || null,
+          });
+        }
+      });
+    }
+  } catch { /* idem */ }
+
+  return eventos.slice(0, MAX_EVENTOS_RAG);
+}
+
 async function handlerPreguntarOneDrive(req, res) {
   const pregunta = (req.query.q || '').trim();
   if (!pregunta) {
@@ -485,18 +637,9 @@ async function handlerPreguntarOneDrive(req, res) {
     // se preguntó.
     const usoRespaldo = conCoincidencias.length === 0;
 
-    if (candidatos.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        respuesta: 'No tienes documentos en formatos que pueda leer todavía (Word, Excel, CSV, texto o PDF).',
-        fuentes: [],
-      });
-    }
-
-    // Descarga y extrae el texto de cada candidato en paralelo. Un documento
-    // que falle (dañado, PDF escaneado, etc.) simplemente se descarta en vez
-    // de tumbar toda la respuesta.
-    const documentos = await Promise.all(candidatos.map(async (item) => {
+    // Si no hay candidatos de OneDrive no se corta la búsqueda — puede que
+    // la respuesta esté en un correo o en la agenda igual.
+    const documentos = candidatos.length === 0 ? [] : await Promise.all(candidatos.map(async (item) => {
       try {
         const contenidoResp = await fetchConTimeout(
           `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
@@ -514,16 +657,32 @@ async function handlerPreguntarOneDrive(req, res) {
     }));
 
     const documentosValidos = documentos.filter(Boolean);
-    if (documentosValidos.length === 0) {
+
+    // Correos y agenda se buscan en paralelo con la lectura de documentos —
+    // no dependen unos de otros, así que no hay razón para hacerlo en serie.
+    const [correosGmail, correosOutlook, eventos] = await Promise.all([
+      buscarCorreosGmail(pregunta),
+      buscarCorreosOutlook(pregunta),
+      buscarEventosRelevantes(pregunta, palabrasClave),
+    ]);
+    const correos = [...correosGmail, ...correosOutlook];
+
+    if (documentosValidos.length === 0 && correos.length === 0 && eventos.length === 0) {
       return res.status(200).json({
         ok: true,
-        respuesta: 'Encontré documentos relacionados, pero no pude leer el contenido de ninguno (pueden ser PDFs escaneados sin texto, u otro problema de formato).',
-        fuentes: candidatos.map((c) => ({ nombre: c.name, webUrl: c.webUrl })),
+        respuesta: 'No encontré nada relacionado con esa pregunta en tus documentos, correos ni agenda.',
+        fuentes: [],
       });
     }
 
-    const contexto = documentosValidos
-      .map((d, i) => `[Documento ${i + 1}: "${d.nombre}"]\n${d.texto}`)
+    const bloques = [
+      ...documentosValidos.map((d) => ({ ...d, tipo: 'Documento', fuente: 'OneDrive' })),
+      ...correos,
+      ...eventos,
+    ];
+
+    const contexto = bloques
+      .map((b, i) => `[${b.tipo} ${i + 1} — ${b.fuente} — "${b.nombre}"]\n${b.texto}`)
       .join('\n\n---\n\n');
 
     const { GROQ_API_KEY } = process.env;
@@ -537,12 +696,12 @@ async function handlerPreguntarOneDrive(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'Eres un asistente que responde preguntas SOLO con la información de los documentos que se te entregan a continuación. Si la respuesta no está en los documentos, dilo claramente en vez de inventarla. Responde en español, directo, y menciona entre paréntesis de qué documento sale cada dato importante (usa el nombre del documento, no "Documento 1").',
+            content: 'Eres un asistente que responde preguntas SOLO con la información que se te entrega a continuación — puede venir de documentos de OneDrive, correos (Gmail/Outlook) o eventos de calendario (Google/Outlook). Si la respuesta no está ahí, dilo claramente en vez de inventarla. Responde en español, directo, y menciona entre paréntesis de dónde sale cada dato importante (ej: "(correo de Gmail: Reunión Alejandro Aguilera)" o "(documento: CV_Daniel...)" o "(agenda: Reunión networking, 24 jul)").',
           },
-          { role: 'user', content: `Documentos:\n\n${contexto}\n\nPregunta: ${pregunta}` },
+          { role: 'user', content: `${contexto}\n\nPregunta: ${pregunta}` },
         ],
         temperature: 0.2,
-        max_tokens: 600,
+        max_tokens: 700,
       }),
     }, 25000);
 
@@ -556,9 +715,9 @@ async function handlerPreguntarOneDrive(req, res) {
     return res.status(200).json({
       ok: true,
       respuesta,
-      fuentes: documentosValidos.map((d) => ({ nombre: d.nombre, webUrl: d.webUrl })),
-      avisoRespaldo: usoRespaldo
-        ? 'Ningún nombre de archivo coincidió con tu pregunta, así que esta respuesta se basa en tus documentos más recientes — puede no ser justo lo que buscabas.'
+      fuentes: bloques.map((b) => ({ nombre: b.nombre, webUrl: b.webUrl, tipo: b.tipo, origen: b.fuente })),
+      avisoRespaldo: usoRespaldo && documentosValidos.length > 0
+        ? 'Ningún nombre de archivo coincidió con tu pregunta, así que los documentos de esta respuesta se basan en tus archivos más recientes — puede no ser justo lo que buscabas.'
         : (!completo
           ? 'Tienes tantos archivos en OneDrive que no alcancé a revisarlos todos — la respuesta puede no incluir algún documento relevante que quedó fuera.'
           : null),
