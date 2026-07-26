@@ -306,7 +306,7 @@ export default function BuscadorOneDrive() {
                 })}
               </div>
             )}
-            {diagnosticoAgenda && (
+            {diagnosticoAgenda && modo === 'preguntar-agenda' && (
               <p style={styles.ragDiagnostico}>
                 🔧 Agenda — Google: {diagnosticoAgenda.google} · Outlook: {diagnosticoAgenda.outlook}
               </p>
