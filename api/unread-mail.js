@@ -698,6 +698,10 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
 
 async function handlerPreguntarOneDrive(req, res) {
   const pregunta = (req.query.q || '').trim();
+  // 'todos' (comportamiento anterior), 'documentos', 'correos' o 'agenda'
+  // — separar por botón evita que el ruido de una fuente tape los
+  // resultados de otra, y de paso cada búsqueda es más rápida.
+  const fuente = req.query.fuente || 'todos';
   if (!pregunta) {
     return res.status(400).json({ error: 'Falta la pregunta (parámetro "q").' });
   }
@@ -712,19 +716,23 @@ async function handlerPreguntarOneDrive(req, res) {
       .split(/[^a-z0-9áéíóúñ]+/i)
       .filter((p) => p.length > 2 && !STOPWORDS.has(p));
 
-    // Las cuatro búsquedas arrancan a la vez en vez de una tras otra — con
-    // el listado de OneDrive solo, que ya puede tomar hasta 22 segundos por
-    // sí solo, hacer todo en cadena se pasaba del límite de 30 segundos que
-    // permite Vercel y la función terminaba cayéndose (por eso el error
-    // genérico "No se pudo generar la respuesta" en vez de un mensaje
-    // concreto). Acá se le da menos presupuesto de tiempo a OneDrive
-    // específicamente, porque además hay que descargar el contenido de los
-    // documentos candidatos después, y todavía queda la llamada a la IA.
+    const quiereDocumentos = fuente === 'todos' || fuente === 'documentos';
+    const quiereCorreos = fuente === 'todos' || fuente === 'correos';
+    const quiereAgenda = fuente === 'todos' || fuente === 'agenda';
+
+    const SIN_RESULTADOS = { archivos: [], completo: true };
+    const SIN_EVENTOS = { eventos: [], diagnostico: { google: 'no consultado (fuente no pedida)', outlook: 'no consultado (fuente no pedida)' } };
+
+    // Las búsquedas arrancan a la vez en vez de una tras otra — con el
+    // listado de OneDrive solo, que ya puede tomar hasta 22 segundos por sí
+    // solo, hacer todo en cadena se pasaba del límite de 30 segundos que
+    // permite Vercel y la función terminaba cayéndose. Acá además solo se
+    // consultan las fuentes que el botón elegido realmente pidió.
     const [{ archivos: todos, completo }, correosGmail, correosOutlook, { eventos, diagnostico: diagnosticoAgenda }] = await Promise.all([
-      listarTodosLosArchivos(accessToken, 12000),
-      buscarCorreosGmail(palabrasClave),
-      buscarCorreosOutlook(palabrasClave),
-      buscarEventosRelevantes(pregunta, palabrasClave),
+      quiereDocumentos ? listarTodosLosArchivos(accessToken, 12000) : Promise.resolve(SIN_RESULTADOS),
+      quiereCorreos ? buscarCorreosGmail(palabrasClave) : Promise.resolve([]),
+      quiereCorreos ? buscarCorreosOutlook(palabrasClave) : Promise.resolve([]),
+      quiereAgenda ? buscarEventosRelevantes(pregunta, palabrasClave) : Promise.resolve(SIN_EVENTOS),
     ]);
     const correos = [...correosGmail, ...correosOutlook];
 
