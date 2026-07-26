@@ -566,6 +566,7 @@ const styles = {
   tarjetaCorreo: {
     background: 'var(--navy-800)', border: '1px solid var(--navy-700)', borderRadius: '10px',
     padding: '10px 12px', margin: '6px 0', cursor: 'pointer',
+    boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden',
   },
   tarjetaFilaCorreo: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' },
   tarjetaHoraCorreo: { fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--paper-100)' },
@@ -575,11 +576,12 @@ const styles = {
   },
   insigniaGmailCorreo: { background: 'var(--gold-500)' },
   insigniaOutlookCorreo: { background: '#4FA0E0' },
-  tarjetaAsuntoCorreo: { fontSize: '0.82rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px' },
-  tarjetaDeCorreo: { fontSize: '0.74rem', color: 'var(--paper-100)', margin: 0 },
+  tarjetaAsuntoCorreo: { fontSize: '0.82rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px', overflowWrap: 'break-word' },
+  tarjetaDeCorreo: { fontSize: '0.74rem', color: 'var(--paper-100)', margin: 0, overflowWrap: 'break-word' },
   tarjetaCuerpoCorreo: {
     fontSize: '0.76rem', color: 'var(--paper-050)', lineHeight: 1.5, margin: '8px 0 0',
     paddingTop: '8px', borderTop: '1px solid var(--navy-700)', whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%',
   },
   tarjetaAbrirCorreo: { display: 'inline-block', fontSize: '0.72rem', color: 'var(--gold-500)', fontWeight: 600, marginTop: '8px' },
   tarjetaTogglePista: { fontSize: '0.65rem', color: 'var(--paper-100)', opacity: 0.6, margin: '6px 0 0' },
