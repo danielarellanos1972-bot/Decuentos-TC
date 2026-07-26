@@ -776,14 +776,35 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
 }
 
 async function handlerPreguntarOneDrive(req, res) {
-  const pregunta = (req.query.q || '').trim();
+  // Acepta tanto GET (?q=...) como POST (body), para poder mandar el
+  // historial de la conversación sin pelear con el límite de largo de una
+  // URL.
+  const cuerpo = req.method === 'POST' ? (req.body || {}) : {};
+  const pregunta = (cuerpo.q || req.query.q || '').trim();
   // 'todos' (comportamiento anterior), 'documentos', 'correos' o 'agenda'
   // — separar por botón evita que el ruido de una fuente tape los
   // resultados de otra, y de paso cada búsqueda es más rápida.
-  const fuente = req.query.fuente || 'todos';
+  const fuente = cuerpo.fuente || req.query.fuente || 'todos';
   if (!pregunta) {
     return res.status(400).json({ error: 'Falta la pregunta (parámetro "q").' });
   }
+
+  // Historial de la conversación (últimas preguntas/respuestas de esta
+  // misma sesión de búsqueda) — permite preguntas de seguimiento como
+  // "¿y cuál de esos es el más reciente?" sin repetir todo el contexto.
+  // Se limita a los últimos 3 intercambios y se recorta cada respuesta,
+  // para no acercarse al límite de tokens por minuto del modelo liviano.
+  const MAX_TURNOS_HISTORIAL = 3;
+  const MAX_CARACTERES_RESPUESTA_HISTORIAL = 600;
+  const historialCrudo = Array.isArray(cuerpo.historial) ? cuerpo.historial : [];
+  const historial = historialCrudo
+    .filter((h) => h && typeof h.pregunta === 'string' && typeof h.respuesta === 'string')
+    .slice(-MAX_TURNOS_HISTORIAL)
+    .map((h) => ({
+      pregunta: h.pregunta.slice(0, 300),
+      respuesta: h.respuesta.slice(0, MAX_CARACTERES_RESPUESTA_HISTORIAL),
+    }));
+
   try {
     const accessToken = await getMicrosoftAccessToken(
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
@@ -791,9 +812,19 @@ async function handlerPreguntarOneDrive(req, res) {
 
     const STOPWORDS = new Set(['que', 'los', 'las', 'del', 'con', 'para', 'por', 'una', 'unos', 'unas', 'como', 'donde', 'cuando', 'sobre', 'este', 'esta', 'estos', 'estas', 'tiene', 'tengo']);
     const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const palabrasClave = normalizar(pregunta)
+    const extraerPalabras = (texto) => normalizar(texto)
       .split(/[^a-z0-9áéíóúñ]+/i)
       .filter((p) => p.length > 2 && !STOPWORDS.has(p));
+
+    let palabrasClave = extraerPalabras(pregunta);
+    // Una pregunta de seguimiento vaga ("¿y cuál es el más reciente?") casi
+    // no trae palabras propias que sirvan para buscar — en ese caso se
+    // reutilizan las palabras clave de la pregunta anterior, para que la
+    // búsqueda siga encontrando lo mismo en vez de quedar en blanco.
+    if (palabrasClave.length <= 1 && historial.length > 0) {
+      const palabrasPrevias = extraerPalabras(historial[historial.length - 1].pregunta);
+      palabrasClave = [...new Set([...palabrasClave, ...palabrasPrevias])];
+    }
 
     // Si la pregunta trae una dirección de correo completa (ej. "correos
     // de jessica.vargas.v@gmail.com"), se busca por remitente exacto en
@@ -899,6 +930,15 @@ async function handlerPreguntarOneDrive(req, res) {
     const { GROQ_API_KEY } = process.env;
     if (!GROQ_API_KEY) throw new Error('Falta la variable de entorno GROQ_API_KEY.');
 
+    // Los turnos anteriores de esta misma sesión de búsqueda se agregan
+    // como conversación previa — así una pregunta de seguimiento puede
+    // apoyarse en lo que la IA ya había respondido antes, sin que Nano
+    // tenga que repetir el contexto completo.
+    const mensajesHistorial = historial.flatMap((h) => ([
+      { role: 'user', content: h.pregunta },
+      { role: 'assistant', content: h.respuesta },
+    ]));
+
     const respGroq = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -907,8 +947,9 @@ async function handlerPreguntarOneDrive(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'Eres un asistente que responde preguntas usando la información que se te entrega a continuación — puede venir de documentos de OneDrive, correos (Gmail/Outlook) o eventos de calendario (Google/Outlook). Si algo de lo entregado es relevante para la pregunta, aunque no calce perfecto en cada detalle (por ejemplo la fecha exacta), menciónalo igual y aclara en qué no calza — no digas "no hay información" si hay algo relacionado en el material entregado. Solo di que no encontraste nada si de verdad no hay ningún dato relacionado. Responde en español, directo, y menciona entre paréntesis de dónde sale cada dato importante (ej: "(correo de Gmail: Reunión Alejandro Aguilera)" o "(documento: CV_Daniel...)" o "(agenda: Reunión networking, 24 jul)").',
+            content: 'Eres un asistente que responde preguntas usando la información que se te entrega a continuación — puede venir de documentos de OneDrive, correos (Gmail/Outlook) o eventos de calendario (Google/Outlook). Si algo de lo entregado es relevante para la pregunta, aunque no calce perfecto en cada detalle (por ejemplo la fecha exacta), menciónalo igual y aclara en qué no calza — no digas "no hay información" si hay algo relacionado en el material entregado. Solo di que no encontraste nada si de verdad no hay ningún dato relacionado. Si la pregunta hace referencia a algo que se conversó antes (ej. "el primero de esos", "cuál es el más reciente"), usa la conversación previa para entender a qué se refiere. Responde en español, directo, y menciona entre paréntesis de dónde sale cada dato importante (ej: "(correo de Gmail: Reunión Alejandro Aguilera)" o "(documento: CV_Daniel...)" o "(agenda: Reunión networking, 24 jul)").',
           },
+          ...mensajesHistorial,
           { role: 'user', content: `${contexto}\n\nPregunta: ${pregunta}` },
         ],
         temperature: 0.2,
@@ -1098,6 +1139,10 @@ async function handlerCompararCV(req, res) {
 export default async function handler(req, res) {
   if (req.method === 'POST' && req.query.tipo === 'onedrive-comparar-cv') {
     return handlerCompararCV(req, res);
+  }
+
+  if (req.method === 'POST' && req.query.tipo === 'onedrive-preguntar') {
+    return handlerPreguntarOneDrive(req, res);
   }
 
   if (req.method !== 'GET') {
