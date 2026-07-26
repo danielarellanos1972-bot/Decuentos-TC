@@ -478,6 +478,23 @@ function extraerCuerpoGmail(payload) {
   return '';
 }
 
+// Mismo criterio de "prefiere 2+ palabras clave" que documentos y agenda —
+// se aplica después de traer los resultados de Gmail/Outlook (que hacen su
+// propia búsqueda "OR", bastante más laxa) para no mostrar como fuente un
+// correo que solo calzó por una palabra suelta y muy genérica.
+function filtrarPorRelevancia(items, palabrasClave, obtenerTexto) {
+  if (palabrasClave.length < 2) return items; // con 1 sola palabra no hay nada que priorizar
+  const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const puntuados = items.map((item) => {
+    const texto = normalizar(obtenerTexto(item));
+    const puntaje = palabrasClave.reduce((acc, p) => acc + (texto.includes(p) ? 1 : 0), 0);
+    return { item, puntaje };
+  });
+  const conVarias = puntuados.filter((p) => p.puntaje >= 2);
+  const mejorGrupo = conVarias.length > 0 ? conVarias : puntuados;
+  return mejorGrupo.sort((a, b) => b.puntaje - a.puntaje).map((p) => p.item);
+}
+
 async function buscarCorreosGmail(palabrasClave) {
   if (palabrasClave.length === 0) return [];
   try {
@@ -485,10 +502,11 @@ async function buscarCorreosGmail(palabrasClave) {
     // Gmail entiende palabras clave, no una pregunta completa en lenguaje
     // natural — "puedes mostrarme los correos de LinkedIn?" no encuentra
     // nada, pero "linkedin" sí. Se unen con OR para que baste con que
-    // aparezca alguna, no todas.
+    // aparezca alguna, no todas (el filtro de relevancia de abajo se
+    // encarga de priorizar los que calzan con varias).
     const consulta = palabrasClave.map((p) => `"${p}"`).join(' OR ');
     const resp = await fetchConTimeout(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=${MAX_CORREOS_RAG}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=${MAX_CORREOS_RAG * 3}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
       8000
     );
@@ -497,7 +515,7 @@ async function buscarCorreosGmail(palabrasClave) {
       return [];
     }
     const data = await resp.json();
-    const ids = (data.messages || []).slice(0, MAX_CORREOS_RAG);
+    const ids = (data.messages || []).slice(0, MAX_CORREOS_RAG * 3);
     const detalles = await Promise.all(ids.map(async (m) => {
       const r = await fetchConTimeout(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`,
@@ -511,9 +529,19 @@ async function buscarCorreosGmail(palabrasClave) {
       const de = (headers.find((h) => h.name === 'From')?.value || '').replace(/<.*>/, '').trim();
       const cuerpo = extraerCuerpoGmail(d.payload).slice(0, MAX_CARACTERES_CORREO);
       if (!cuerpo.trim()) return null;
-      return { tipo: 'Correo', fuente: 'Gmail', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: null };
+      const fechaRecibido = d.internalDate
+        ? new Date(Number(d.internalDate)).toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'medium', timeStyle: 'short' })
+        : 'fecha desconocida';
+      return {
+        tipo: 'Correo', fuente: 'Gmail',
+        nombre: `${asunto} (de ${de}, recibido ${fechaRecibido})`,
+        texto: `Recibido: ${fechaRecibido}\n${cuerpo}`,
+        webUrl: null,
+        _asunto: asunto,
+      };
     }));
-    return detalles.filter(Boolean);
+    const validos = detalles.filter(Boolean);
+    return filtrarPorRelevancia(validos, palabrasClave, (c) => `${c._asunto} ${c.texto}`).slice(0, MAX_CORREOS_RAG);
   } catch (err) {
     console.error('buscarCorreosGmail: falló', err);
     return [];
@@ -528,7 +556,7 @@ async function buscarCorreosOutlook(palabrasClave) {
     // con una oración completa — mismo motivo que en Gmail.
     const consulta = palabrasClave.join(' ');
     const resp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(consulta)}"&$top=${MAX_CORREOS_RAG}&$select=subject,from,receivedDateTime,body,webLink`,
+      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(consulta)}"&$top=${MAX_CORREOS_RAG * 3}&$select=subject,from,receivedDateTime,body,webLink`,
       { headers: { Authorization: `Bearer ${accessToken}`, ConsistencyLevel: 'eventual' } },
       8000
     );
@@ -537,14 +565,24 @@ async function buscarCorreosOutlook(palabrasClave) {
       return [];
     }
     const data = await resp.json();
-    return (data.value || []).map((m) => {
+    const validos = (data.value || []).map((m) => {
       const asunto = m.subject || '(sin asunto)';
       const de = m.from?.emailAddress?.name || m.from?.emailAddress?.address || '';
       const htmlOTexto = m.body?.content || '';
       const cuerpo = htmlOTexto.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_CARACTERES_CORREO);
       if (!cuerpo) return null;
-      return { tipo: 'Correo', fuente: 'Outlook', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: m.webLink || null };
+      const fechaRecibido = m.receivedDateTime
+        ? new Date(m.receivedDateTime).toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'medium', timeStyle: 'short' })
+        : 'fecha desconocida';
+      return {
+        tipo: 'Correo', fuente: 'Outlook',
+        nombre: `${asunto} (de ${de}, recibido ${fechaRecibido})`,
+        texto: `Recibido: ${fechaRecibido}\n${cuerpo}`,
+        webUrl: m.webLink || null,
+        _asunto: asunto,
+      };
     }).filter(Boolean);
+    return filtrarPorRelevancia(validos, palabrasClave, (c) => `${c._asunto} ${c.texto}`).slice(0, MAX_CORREOS_RAG);
   } catch (err) {
     console.error('buscarCorreosOutlook: falló', err);
     return [];
@@ -644,7 +682,13 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
     diagnostico.outlook = `Excepción: ${err.message}`;
   }
 
-  const eventos = puntuados
+  // Mismo criterio que en los documentos: si hay varios que calzan con 2
+  // palabras o más, esos ganan por sobre los que solo calzan con una
+  // palabra genérica ("reunión" sola aparece en decenas de eventos).
+  const conVarias = puntuados.filter((p) => p.puntaje >= 2);
+  const mejorGrupo = conVarias.length > 0 ? conVarias : puntuados;
+
+  const eventos = mejorGrupo
     .sort((a, b) => b.puntaje - a.puntaje)
     .slice(0, MAX_EVENTOS_RAG)
     .map((p) => p.evento);
@@ -698,7 +742,14 @@ async function handlerPreguntarOneDrive(req, res) {
     });
 
     const conCoincidencias = puntuados.filter((p) => p.puntaje > 0);
-    const listaOrdenada = (conCoincidencias.length > 0 ? conCoincidencias : puntuados)
+    // Cuando hay varias palabras clave, se prioriza a los que calzan con 2
+    // o más — así una palabra genérica sola (ej. "reunión", que aparece en
+    // cientos de archivos) no llena los cupos y tapa al que sí calza con
+    // el nombre completo de la persona/tema. Solo se baja la exigencia a 1
+    // palabra si nadie llega a 2.
+    const conVariasCoincidencias = conCoincidencias.filter((p) => p.puntaje >= 2);
+    const mejorGrupo = conVariasCoincidencias.length > 0 ? conVariasCoincidencias : conCoincidencias;
+    const listaOrdenada = (mejorGrupo.length > 0 ? mejorGrupo : puntuados)
       .sort((a, b) => b.puntaje - a.puntaje || new Date(b.item.lastModifiedDateTime) - new Date(a.item.lastModifiedDateTime));
 
     const candidatos = listaOrdenada.slice(0, MAX_CANDIDATOS_RAG).map((p) => p.item);
