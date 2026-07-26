@@ -495,16 +495,27 @@ function filtrarPorRelevancia(items, palabrasClave, obtenerTexto) {
   return mejorGrupo.sort((a, b) => b.puntaje - a.puntaje).map((p) => p.item);
 }
 
-async function buscarCorreosGmail(palabrasClave) {
-  if (palabrasClave.length === 0) return [];
+// Fragmentos genéricos que quedan al descomponer un correo electrónico en
+// palabras ("nombre.apellido@gmail.com" → "gmail", "com") — son tan
+// comunes que ahogan cualquier búsqueda real si se dejan en la consulta.
+const FRAGMENTOS_GENERICOS_CORREO = new Set(['gmail', 'outlook', 'hotmail', 'com', 'cl', 'net', 'org', 'mail']);
+
+async function buscarCorreosGmail(palabrasClave, correoExacto) {
+  if (!correoExacto && palabrasClave.length === 0) return [];
   try {
     const accessToken = await getGoogleAccessToken();
-    // Gmail entiende palabras clave, no una pregunta completa en lenguaje
-    // natural — "puedes mostrarme los correos de LinkedIn?" no encuentra
-    // nada, pero "linkedin" sí. Se unen con OR para que baste con que
-    // aparezca alguna, no todas (el filtro de relevancia de abajo se
-    // encarga de priorizar los que calzan con varias).
-    const consulta = palabrasClave.map((p) => `"${p}"`).join(' OR ');
+    // Si la pregunta trae una dirección de correo completa, se busca por
+    // remitente exacto (mucho más preciso) en vez de trocearla en palabras
+    // sueltas. Si no, se arma la consulta OR con las palabras clave, mismo
+    // criterio de siempre, pero sin fragmentos genéricos de dominio.
+    let consulta;
+    if (correoExacto) {
+      consulta = `from:${correoExacto}`;
+    } else {
+      const palabrasUtiles = palabrasClave.filter((p) => !FRAGMENTOS_GENERICOS_CORREO.has(p));
+      if (palabrasUtiles.length === 0) return [];
+      consulta = palabrasUtiles.map((p) => `"${p}"`).join(' OR ');
+    }
     const resp = await fetchConTimeout(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=${MAX_CORREOS_RAG * 3}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -549,6 +560,9 @@ async function buscarCorreosGmail(palabrasClave) {
       };
     }));
     const validos = detalles.filter(Boolean);
+    // Con búsqueda exacta por remitente ya no hace falta el filtro de
+    // relevancia por palabras (Gmail ya devolvió justo lo que se pidió).
+    if (correoExacto) return validos.slice(0, MAX_CORREOS_RAG);
     return filtrarPorRelevancia(validos, palabrasClave, (c) => `${c._asunto} ${c.texto}`).slice(0, MAX_CORREOS_RAG);
   } catch (err) {
     console.error('buscarCorreosGmail: falló', err);
@@ -556,15 +570,26 @@ async function buscarCorreosGmail(palabrasClave) {
   }
 }
 
-async function buscarCorreosOutlook(palabrasClave) {
-  if (palabrasClave.length === 0) return [];
+async function buscarCorreosOutlook(palabrasClave, correoExacto) {
+  if (!correoExacto && palabrasClave.length === 0) return [];
   try {
     const accessToken = await getMicrosoftAccessToken();
-    // $search de Graph funciona mejor con un puñado de palabras clave que
-    // con una oración completa — mismo motivo que en Gmail.
-    const consulta = palabrasClave.join(' ');
+    let url;
+    if (correoExacto) {
+      // Búsqueda exacta por remitente vía $filter — más precisa que
+      // $search para este caso, y Graph la soporta directo sobre la
+      // dirección de correo.
+      url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(`from/emailAddress/address eq '${correoExacto}'`)}&$top=${MAX_CORREOS_RAG * 3}&$select=subject,from,receivedDateTime,body,webLink&$orderby=receivedDateTime desc`;
+    } else {
+      const palabrasUtiles = palabrasClave.filter((p) => !FRAGMENTOS_GENERICOS_CORREO.has(p));
+      if (palabrasUtiles.length === 0) return [];
+      // $search de Graph funciona mejor con un puñado de palabras clave que
+      // con una oración completa — mismo motivo que en Gmail.
+      const consulta = palabrasUtiles.join(' ');
+      url = `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(consulta)}"&$top=${MAX_CORREOS_RAG * 3}&$select=subject,from,receivedDateTime,body,webLink`;
+    }
     const resp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(consulta)}"&$top=${MAX_CORREOS_RAG * 3}&$select=subject,from,receivedDateTime,body,webLink`,
+      url,
       { headers: { Authorization: `Bearer ${accessToken}`, ConsistencyLevel: 'eventual' } },
       8000
     );
@@ -594,6 +619,7 @@ async function buscarCorreosOutlook(palabrasClave) {
         _asunto: asunto,
       };
     }).filter(Boolean);
+    if (correoExacto) return validos.slice(0, MAX_CORREOS_RAG);
     return filtrarPorRelevancia(validos, palabrasClave, (c) => `${c._asunto} ${c.texto}`).slice(0, MAX_CORREOS_RAG);
   } catch (err) {
     console.error('buscarCorreosOutlook: falló', err);
@@ -769,6 +795,13 @@ async function handlerPreguntarOneDrive(req, res) {
       .split(/[^a-z0-9áéíóúñ]+/i)
       .filter((p) => p.length > 2 && !STOPWORDS.has(p));
 
+    // Si la pregunta trae una dirección de correo completa (ej. "correos
+    // de jessica.vargas.v@gmail.com"), se busca por remitente exacto en
+    // vez de trocearla en palabras sueltas como "gmail" y "com" — esas
+    // aparecen en casi todos los correos y ahogaban la búsqueda real.
+    const matchCorreo = pregunta.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+    const correoExacto = matchCorreo ? matchCorreo[0].toLowerCase() : null;
+
     const quiereDocumentos = fuente === 'todos' || fuente === 'documentos';
     const quiereCorreos = fuente === 'todos' || fuente === 'correos';
     const quiereAgenda = fuente === 'todos' || fuente === 'agenda';
@@ -783,8 +816,8 @@ async function handlerPreguntarOneDrive(req, res) {
     // consultan las fuentes que el botón elegido realmente pidió.
     const [{ archivos: todos, completo }, correosGmail, correosOutlook, { eventos, diagnostico: diagnosticoAgenda }] = await Promise.all([
       quiereDocumentos ? listarTodosLosArchivos(accessToken, 12000) : Promise.resolve(SIN_RESULTADOS),
-      quiereCorreos ? buscarCorreosGmail(palabrasClave) : Promise.resolve([]),
-      quiereCorreos ? buscarCorreosOutlook(palabrasClave) : Promise.resolve([]),
+      quiereCorreos ? buscarCorreosGmail(palabrasClave, correoExacto) : Promise.resolve([]),
+      quiereCorreos ? buscarCorreosOutlook(palabrasClave, correoExacto) : Promise.resolve([]),
       quiereAgenda ? buscarEventosRelevantes(pregunta, palabrasClave) : Promise.resolve(SIN_EVENTOS),
     ]);
     const correos = [...correosGmail, ...correosOutlook];
