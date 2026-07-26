@@ -431,7 +431,7 @@ async function buscarNoticiasFuente(fuente) {
 // --- 2. Selección + redacción con Groq (dos llamadas separadas para no
 // pasarse del límite de tokens por minuto del modelo liviano) ---
 
-const MAX_NOTICIAS = 5;
+const MAX_NOTICIAS = 4;
 
 async function seleccionarNoticias(candidatas) {
   const { GROQ_API_KEY } = process.env;
@@ -449,7 +449,7 @@ async function seleccionarNoticias(candidatas) {
       messages: [
         {
           role: 'system',
-          content: `Eres el filtro editorial de un reporte ejecutivo diario para un COO/VP de Operaciones y Supply Chain en LATAM. Te doy una lista numerada de titulares recientes. Elige entre 6 y ${MAX_NOTICIAS} con mayor relevancia ejecutiva (costos operacionales, cadena de suministro, regulación, tecnología aplicada a operaciones), y asigna a cada una la categoría que mejor le calce de esta lista exacta: ${CATEGORIAS.join(', ')}. Responde SOLO con un JSON array, sin texto adicional, formato: [{"indice": 0, "categoria": "Supply Chain"}, ...]`,
+          content: `Eres el filtro editorial de un reporte ejecutivo diario para un COO/VP de Operaciones y Supply Chain en LATAM. Te doy una lista numerada de titulares recientes. Elige hasta ${MAX_NOTICIAS} con mayor relevancia ejecutiva (costos operacionales, cadena de suministro, regulación, tecnología aplicada a operaciones), y asigna a cada una la categoría que mejor le calce de esta lista exacta: ${CATEGORIAS.join(', ')}. Responde SOLO con un JSON array, sin texto adicional, formato: [{"indice": 0, "categoria": "Supply Chain"}, ...]`,
         },
         { role: 'user', content: listado },
       ],
@@ -483,12 +483,12 @@ async function redactarPosts(seleccion) {
       messages: [
         {
           role: 'system',
-          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Para cada noticia que te paso, redacta un post de LinkedIn: arranca directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cierre con una reflexión de 1-2 líneas + una pregunta que invite al debate, y 5-7 hashtags al final. Máximo 180 palabras, texto corrido, sin bullets ni asteriscos. También un resumen de 2 oraciones con datos concretos. Responde SOLO con un JSON array en este formato exacto, sin texto adicional: [{"indice": 0, "resumen": "...", "post": "..."}]',
+          content: 'Eres el asistente ejecutivo de un COO/VP de Operaciones y Supply Chain LATAM con 20+ años de experiencia. Para cada noticia que te paso, redacta un post de LinkedIn: arranca directo con el dato más potente (nunca "según [medio]" ni el nombre de la empresa primero), 3-4 párrafos breves y conversacionales sin clichés ("apasionante", "transformador", "disruptivo"), perspectiva ejecutiva de qué significa para operaciones/supply chain en LATAM, cierre con una reflexión de 1-2 líneas + una pregunta que invite al debate, y 5-7 hashtags al final. Máximo 150 palabras, texto corrido, sin bullets ni asteriscos. También un resumen de 2 oraciones con datos concretos. Responde SOLO con un JSON array en este formato exacto, sin texto adicional ni explicaciones antes o después: [{"indice": 0, "resumen": "...", "post": "..."}]',
         },
         { role: 'user', content: listado },
       ],
       temperature: 0.5,
-      max_tokens: 2200,
+      max_tokens: 3200,
     }),
   }, 25000);
   if (!resp.ok) throw new Error(`Groq (redacción) respondió ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 200)}`);
@@ -496,8 +496,16 @@ async function redactarPosts(seleccion) {
   const texto = data.choices?.[0]?.message?.content?.trim() || '[]';
   try {
     const limpio = texto.replace(/```json|```/g, '').trim();
-    return JSON.parse(limpio);
-  } catch {
+    const resultado = JSON.parse(limpio);
+    if (!Array.isArray(resultado) || resultado.length === 0) {
+      console.error('redactarPosts: el modelo respondió sin posts utilizables. Texto crudo:', texto.slice(0, 1000));
+    }
+    return resultado;
+  } catch (err) {
+    // Se deja el texto crudo en los logs — así la próxima vez que falle se
+    // puede ver exactamente qué devolvió el modelo (ej. si se cortó a la
+    // mitad del JSON) en vez de adivinar.
+    console.error('redactarPosts: no se pudo parsear la respuesta como JSON.', err.message, 'Texto crudo:', texto.slice(0, 1000));
     return [];
   }
 }
