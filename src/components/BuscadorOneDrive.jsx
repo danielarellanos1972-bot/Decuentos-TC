@@ -146,7 +146,7 @@ export default function BuscadorOneDrive() {
       <h2 style={styles.h2}>Buscar en OneDrive</h2>
       <p style={styles.sub}>
         {modo === 'buscar' && 'Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.'}
-        {modo === 'preguntar' && 'Hazle una pregunta a tus documentos — la respuesta se arma cruzando el contenido de los archivos relevantes.'}
+        {modo === 'preguntar' && 'Hazle una pregunta — la respuesta se arma cruzando tus documentos, correos y agenda.'}
         {modo === 'comparar' && 'Pega un aviso de trabajo y te digo cuál de tus versiones de CV calza mejor.'}
       </p>
 
@@ -161,7 +161,7 @@ export default function BuscadorOneDrive() {
           style={{ ...styles.toggleBoton, ...(modo === 'preguntar' ? styles.toggleBotonActivo : {}) }}
           onClick={() => setModo('preguntar')}
         >
-          💬 Preguntar a mis documentos
+          💬 Preguntar (documentos, correo y agenda)
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'comparar' ? styles.toggleBotonActivo : {}) }}
@@ -250,11 +250,17 @@ export default function BuscadorOneDrive() {
             {fuentesRag && fuentesRag.length > 0 && (
               <div style={styles.ragFuentes}>
                 <p style={styles.modalSeccion}>Fuentes</p>
-                {fuentesRag.map((f, i) => (
-                  <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
-                    📄 {f.nombre} ↗
-                  </a>
-                ))}
+                {fuentesRag.map((f, i) => {
+                  const icono = f.tipo === 'Correo' ? '✉️' : f.tipo === 'Agenda' ? '📅' : '📄';
+                  const etiqueta = f.tipo && f.origen ? `${icono} [${f.tipo} · ${f.origen}] ${f.nombre}` : `${icono} ${f.nombre}`;
+                  return f.webUrl ? (
+                    <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
+                      {etiqueta} ↗
+                    </a>
+                  ) : (
+                    <p key={i} style={styles.ragFuenteItem}>{etiqueta}</p>
+                  );
+                })}
               </div>
             )}
           </div>
