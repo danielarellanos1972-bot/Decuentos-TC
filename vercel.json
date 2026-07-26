@@ -8,10 +8,6 @@
     {
       "path": "/api/resumen-diario?accion=enviar",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/resumen-diario?reporte=noticias&accion=enviar",
-      "schedule": "0 12 * * *"
     }
   ]
 }
