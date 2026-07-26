@@ -522,7 +522,7 @@ async function redactarUnPost(noticia) {
 
 async function redactarPosts(seleccion) {
   const resultados = await Promise.all(seleccion.map((n) => redactarUnPost(n)));
-  const posts = resultados.map((r, i) => ({ indice: i, resumen: r.resumen, post: r.post }));
+  const posts = resultados.map((r, i) => ({ indice: i, resumen: r.resumen, post: r.post, error: r.error }));
   const fallidos = resultados.filter((r) => r.error);
   const diagnostico = fallidos.length > 0
     ? `${fallidos.length}/${resultados.length} posts no se pudieron generar. Ej: ${fallidos[0].error}`
@@ -607,7 +607,8 @@ async function generarReporteNoticias() {
   const seleccion = await seleccionarNoticias(todas);
   const elegidas = seleccion
     .filter((s) => todas[s.indice])
-    .map((s) => ({ ...todas[s.indice], categoria: s.categoria }));
+    .map((s) => ({ ...todas[s.indice], categoria: s.categoria }))
+    .slice(0, MAX_NOTICIAS); // el modelo a veces "sugiere" que elige hasta N pero devuelve más — se recorta acá para que el límite se respete de verdad, sin depender de que obedezca la instrucción
 
   if (elegidas.length === 0) {
     throw new Error('El modelo no seleccionó ninguna noticia relevante hoy.');
@@ -620,7 +621,7 @@ async function generarReporteNoticias() {
       ...n,
       id: i,
       resumen: p?.resumen || '(sin resumen)',
-      post: p?.post || '(no se pudo generar el post)',
+      post: p?.post || `(no se pudo generar el post — motivo: ${p?.error || 'desconocido'})`,
       fechaLegible: n.pubDate ? new Date(n.pubDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) : '',
     };
   });
