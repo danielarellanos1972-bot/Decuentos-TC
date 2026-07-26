@@ -491,22 +491,24 @@ async function redactarPosts(seleccion) {
       max_tokens: 3200,
     }),
   }, 25000);
-  if (!resp.ok) throw new Error(`Groq (redacción) respondió ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 200)}`);
+  if (!resp.ok) {
+    const detalle = (await resp.text().catch(() => '')).slice(0, 300);
+    return { posts: [], diagnostico: `Groq respondió con error ${resp.status}: ${detalle}` };
+  }
   const data = await resp.json();
   const texto = data.choices?.[0]?.message?.content?.trim() || '[]';
   try {
     const limpio = texto.replace(/```json|```/g, '').trim();
     const resultado = JSON.parse(limpio);
     if (!Array.isArray(resultado) || resultado.length === 0) {
-      console.error('redactarPosts: el modelo respondió sin posts utilizables. Texto crudo:', texto.slice(0, 1000));
+      return { posts: [], diagnostico: `El modelo respondió sin posts utilizables. Texto crudo: ${texto.slice(0, 500)}` };
     }
-    return resultado;
+    return { posts: resultado, diagnostico: null };
   } catch (err) {
-    // Se deja el texto crudo en los logs — así la próxima vez que falle se
-    // puede ver exactamente qué devolvió el modelo (ej. si se cortó a la
-    // mitad del JSON) en vez de adivinar.
-    console.error('redactarPosts: no se pudo parsear la respuesta como JSON.', err.message, 'Texto crudo:', texto.slice(0, 1000));
-    return [];
+    // Se devuelve el texto crudo — así se puede ver exactamente qué
+    // contestó el modelo (ej. si se cortó a la mitad del JSON) en vez de
+    // tener que ir a buscarlo en los logs de Vercel.
+    return { posts: [], diagnostico: `No se pudo leer la respuesta como JSON (${err.message}). Texto crudo: ${texto.slice(0, 500)}` };
   }
 }
 
@@ -593,7 +595,7 @@ async function generarReporteNoticias() {
     throw new Error('El modelo no seleccionó ninguna noticia relevante hoy.');
   }
 
-  const posts = await redactarPosts(elegidas);
+  const { posts, diagnostico: diagnosticoRedaccion } = await redactarPosts(elegidas);
   const conPost = elegidas.map((n, i) => {
     const p = posts.find((x) => x.indice === i);
     return {
@@ -620,7 +622,7 @@ async function generarReporteNoticias() {
   const nombreArchivo = `reportes-noticias/${hoy.toISOString().slice(0, 10)}.html`;
   const { url } = await put(nombreArchivo, html, { access: 'public', contentType: 'text/html', allowOverwrite: true });
 
-  return { url, cantidad: conPost.length, fechaTitulo };
+  return { url, cantidad: conPost.length, fechaTitulo, diagnosticoRedaccion };
 }
 
 async function enviarLinkReporteNoticias(url, fechaTitulo, cantidad) {
@@ -674,8 +676,8 @@ export default async function handler(req, res) {
         await enviarLinkReporteNoticias(url, fechaTitulo, cantidad);
         return res.status(200).json({ ok: true, url, cantidad });
       }
-      const { url, cantidad, fechaTitulo } = await generarReporteNoticias();
-      return res.status(200).json({ ok: true, url, cantidad, fechaTitulo });
+      const { url, cantidad, fechaTitulo, diagnosticoRedaccion } = await generarReporteNoticias();
+      return res.status(200).json({ ok: true, url, cantidad, fechaTitulo, diagnosticoRedaccion });
     } catch (err) {
       console.error('resumen-diario (reporte=noticias) error:', err);
       return res.status(500).json({ error: err.message || 'Error generando el reporte de noticias.' });
