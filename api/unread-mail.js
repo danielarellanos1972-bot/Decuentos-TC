@@ -536,7 +536,11 @@ async function buscarCorreosGmail(palabrasClave) {
         tipo: 'Correo', fuente: 'Gmail',
         nombre: `${asunto} (de ${de}, recibido ${fechaRecibido})`,
         texto: `Recibido: ${fechaRecibido}\n${cuerpo}`,
-        webUrl: null,
+        // Gmail no entrega un link directo en la API — pero el propio id
+        // del mensaje sirve para armar uno que abre el correo real en
+        // Gmail (antes esto quedaba en null y el botón no llevaba a
+        // ningún lado).
+        webUrl: `https://mail.google.com/mail/u/0/#inbox/${m.id}`,
         asunto,
         de,
         fecha: fechaRecibido,
