@@ -535,8 +535,12 @@ async function buscarCorreosOutlook(pregunta) {
 
 async function buscarEventosRelevantes(pregunta, palabrasClave) {
   const ahora = new Date();
-  const desde = new Date(ahora.getTime() - 60 * 24 * 60 * 60 * 1000);
-  const hasta = new Date(ahora.getTime() + 60 * 24 * 60 * 60 * 1000);
+  // Cubre todo el año en curso (no solo unos meses para cada lado) — así
+  // encuentra tanto reuniones ya pasadas de este año como las agendadas
+  // para más adelante.
+  const anioActual = ahora.getFullYear();
+  const desde = new Date(Date.UTC(anioActual, 0, 1, 0, 0, 0));
+  const hasta = new Date(Date.UTC(anioActual, 11, 31, 23, 59, 59));
   const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const calza = (texto) => {
     const n = normalizar(texto || '');
@@ -549,7 +553,7 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
     const accessToken = await getGoogleAccessToken();
     const params = new URLSearchParams({
       timeMin: desde.toISOString(), timeMax: hasta.toISOString(),
-      singleEvents: 'true', orderBy: 'startTime', maxResults: '100',
+      singleEvents: 'true', orderBy: 'startTime', maxResults: '2500',
     });
     const resp = await fetchConTimeout(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
@@ -573,11 +577,11 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
 
   try {
     const accessToken = await getMicrosoftAccessToken();
-    const params = new URLSearchParams({ startDateTime: desde.toISOString(), endDateTime: hasta.toISOString(), $top: '100' });
+    const params = new URLSearchParams({ startDateTime: desde.toISOString(), endDateTime: hasta.toISOString(), $top: '999' });
     const resp = await fetchConTimeout(
       `https://graph.microsoft.com/v1.0/me/calendarView?${params.toString()}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
-      8000
+      11000
     );
     if (resp.ok) {
       const data = await resp.json();
