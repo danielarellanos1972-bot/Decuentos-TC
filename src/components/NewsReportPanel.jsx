@@ -21,7 +21,8 @@ export default function NewsReportPanel() {
 
   return (
     <section style={styles.section}>
-      <h2 style={styles.h2}>Reporte de Noticias LinkedIn</h2>
+      <h2 style={styles.h2}>Automatizaciones</h2>
+      <p style={styles.subTitulo}>📰 Reporte de Noticias LinkedIn</p>
       <p style={styles.sub}>
         Busca noticias sectoriales de las últimas 24-72h y redacta posts LinkedIn C-Level para cada una.
       </p>
@@ -57,6 +58,7 @@ const styles = {
     padding: '20px', marginTop: '20px',
   },
   h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
+  subTitulo: { fontSize: '0.95rem', fontWeight: 700, color: 'var(--gold-500)', margin: '0 0 4px' },
   sub: { fontSize: '0.85rem', color: 'var(--paper-100)', margin: '0 0 14px' },
   boton: {
     background: 'var(--gold-500)', color: '#fff', border: 'none', borderRadius: '10px',
