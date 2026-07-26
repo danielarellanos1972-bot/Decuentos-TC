@@ -439,7 +439,7 @@ async function seleccionarNoticias(candidatas) {
   const listado = candidatas
     .map((c, i) => `${i}. [${c.fuente}] ${c.titulo} (${c.pubDate})`)
     .join('\n')
-    .slice(0, 3000);
+    .slice(0, 2000);
 
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -454,7 +454,7 @@ async function seleccionarNoticias(candidatas) {
         { role: 'user', content: listado },
       ],
       temperature: 0.2,
-      max_tokens: 500,
+      max_tokens: 300,
     }),
   }, 20000);
   if (!resp.ok) throw new Error(`Groq (selección) respondió ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 200)}`);
@@ -473,7 +473,7 @@ async function redactarPosts(seleccion) {
   const listado = seleccion
     .map((n, i) => `${i}. [${n.categoria} — ${n.fuente}, ${n.pubDate}] ${n.titulo}\nLink: ${n.link}`)
     .join('\n\n')
-    .slice(0, 2200);
+    .slice(0, 1500);
 
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -488,7 +488,7 @@ async function redactarPosts(seleccion) {
         { role: 'user', content: listado },
       ],
       temperature: 0.5,
-      max_tokens: 3200,
+      max_tokens: 2000,
     }),
   }, 25000);
   if (!resp.ok) {
