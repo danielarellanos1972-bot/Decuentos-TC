@@ -537,6 +537,10 @@ async function buscarCorreosGmail(palabrasClave) {
         nombre: `${asunto} (de ${de}, recibido ${fechaRecibido})`,
         texto: `Recibido: ${fechaRecibido}\n${cuerpo}`,
         webUrl: null,
+        asunto,
+        de,
+        fecha: fechaRecibido,
+        cuerpo,
         _asunto: asunto,
       };
     }));
@@ -579,6 +583,10 @@ async function buscarCorreosOutlook(palabrasClave) {
         nombre: `${asunto} (de ${de}, recibido ${fechaRecibido})`,
         texto: `Recibido: ${fechaRecibido}\n${cuerpo}`,
         webUrl: m.webLink || null,
+        asunto,
+        de,
+        fecha: fechaRecibido,
+        cuerpo,
         _asunto: asunto,
       };
     }).filter(Boolean);
@@ -881,7 +889,10 @@ async function handlerPreguntarOneDrive(req, res) {
     return res.status(200).json({
       ok: true,
       respuesta,
-      fuentes: bloques.map((b) => ({ nombre: b.nombre, webUrl: b.webUrl, tipo: b.tipo, origen: b.fuente })),
+      fuentes: bloques.map((b) => ({
+        nombre: b.nombre, webUrl: b.webUrl, tipo: b.tipo, origen: b.fuente,
+        asunto: b.asunto || null, de: b.de || null, fecha: b.fecha || null, cuerpo: b.cuerpo || null,
+      })),
       avisoRespaldo: usoRespaldo && documentosValidos.length > 0
         ? 'Ningún nombre de archivo coincidió con tu pregunta, así que los documentos de esta respuesta se basan en tus archivos más recientes — puede no ser justo lo que buscabas.'
         : (!completo
