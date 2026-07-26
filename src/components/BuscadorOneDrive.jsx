@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 export default function BuscadorOneDrive() {
   const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar-documentos' | 'preguntar-correos' | 'preguntar-agenda' | 'comparar'
   const [q, setQ] = useState('');
+  const [carpeta, setCarpeta] = useState('Personales_Principal');
   const [resultados, setResultados] = useState(null);
   const [avisoIncompleto, setAvisoIncompleto] = useState(null);
   const [buscando, setBuscando] = useState(false);
@@ -131,7 +132,8 @@ export default function BuscadorOneDrive() {
     setError(null);
     setResultados(null);
     setAvisoIncompleto(null);
-    fetch(`/api/unread-mail?tipo=onedrive&q=${encodeURIComponent(termino)}`)
+    const carpetaParam = carpeta.trim() ? `&carpeta=${encodeURIComponent(carpeta.trim())}` : '';
+    fetch(`/api/unread-mail?tipo=onedrive&q=${encodeURIComponent(termino)}${carpetaParam}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error);
@@ -213,6 +215,18 @@ export default function BuscadorOneDrive() {
 
       {modo === 'buscar' && (
       <>
+      <form style={styles.formFila} onSubmit={buscar}>
+        <input
+          style={styles.input}
+          type="text"
+          placeholder="Carpeta (opcional) — ej: Proyecto Panguipulli, o Personales_Pricipal/Personales 2026"
+          value={carpeta}
+          onChange={(e) => setCarpeta(e.target.value)}
+        />
+      </form>
+      <p style={styles.subCampo}>
+        Por defecto busca dentro de "Personales_Principal" (mucho más rápido que revisar todo el OneDrive). Cámbiala si el archivo está en otra carpeta, o bórrala del todo para buscar en todas partes.
+      </p>
       <form style={styles.formFila} onSubmit={buscar}>
         <input
           style={styles.input}
