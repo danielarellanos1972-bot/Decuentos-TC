@@ -53,7 +53,7 @@ const styles = {
     background: 'var(--navy-900)', border: '1px solid var(--navy-700)', borderRadius: '16px',
     padding: '20px', marginTop: '20px',
   },
-  h2: { fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--gold-500)', margin: '0 0 6px' },
+  h2: { fontFamily: 'var(--font-display)', fontSize: '2rem', margin: '0 0 8px', color: 'var(--paper-050)' },
   sub: { fontSize: '0.85rem', color: 'var(--paper-100)', margin: '0 0 14px' },
   boton: {
     background: 'var(--gold-500)', color: '#fff', border: 'none', borderRadius: '10px',
