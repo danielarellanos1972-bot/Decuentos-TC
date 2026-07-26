@@ -11,7 +11,6 @@ import Calendar from './components/Calendar.jsx';
 import EmailPanel from './components/EmailPanel.jsx';
 import BuscadorOneDrive from './components/BuscadorOneDrive.jsx';
 import Calculator from './components/Calculator.jsx';
-import NewsReportPanel from './components/NewsReportPanel.jsx';
 import NowPlayingBar from './components/NowPlayingBar.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
@@ -150,8 +149,6 @@ export default function App() {
             <WeeklyOffers tarjetas={tarjetas} />
 
             <Calculator />
-
-            <NewsReportPanel />
 
             <BankLinks />
 
