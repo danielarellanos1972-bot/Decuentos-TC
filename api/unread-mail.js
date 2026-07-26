@@ -312,7 +312,7 @@ async function resumenEjecutivo(texto) {
   if (!GROQ_API_KEY) {
     throw new Error('Falta la variable de entorno GROQ_API_KEY.');
   }
-  const textoRecortado = texto.slice(0, 12000);
+  const textoRecortado = texto.slice(0, 4000);
   const resp = await fetchConTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -326,7 +326,7 @@ async function resumenEjecutivo(texto) {
         { role: 'user', content: textoRecortado },
       ],
       temperature: 0.3,
-      max_tokens: 500,
+      max_tokens: 350,
     }),
   }, 20000);
   if (!resp.ok) {
@@ -442,8 +442,8 @@ async function handlerAnalisisOneDrive(req, res) {
 // índice vectorial real si algún día hace falta preguntar "a ciegas" sobre
 // todo un OneDrive de miles de archivos.
 
-const MAX_CANDIDATOS_RAG = 12;
-const MAX_CARACTERES_POR_DOC = 3000;
+const MAX_CANDIDATOS_RAG = 5;
+const MAX_CARACTERES_POR_DOC = 900;
 
 // --- Fuentes adicionales para "Preguntar a mis documentos": correos y agenda ---
 //
@@ -453,9 +453,9 @@ const MAX_CARACTERES_POR_DOC = 3000;
 // sí se usa el buscador de cada servicio directamente, en vez de listar
 // todo a mano.
 
-const MAX_CORREOS_RAG = 4;
-const MAX_EVENTOS_RAG = 6;
-const MAX_CARACTERES_CORREO = 1800;
+const MAX_CORREOS_RAG = 3;
+const MAX_EVENTOS_RAG = 5;
+const MAX_CARACTERES_CORREO = 600;
 
 function extraerCuerpoGmail(payload) {
   if (!payload) return '';
@@ -711,7 +711,12 @@ async function handlerPreguntarOneDrive(req, res) {
 
     const contexto = bloques
       .map((b, i) => `[${b.tipo} ${i + 1} — ${b.fuente} — "${b.nombre}"]\n${b.texto}`)
-      .join('\n\n---\n\n');
+      .join('\n\n---\n\n')
+      // Tope de seguridad final: aunque cada fuente ya viene recortada, la
+      // suma de varias fuentes igual puede acercarse al límite de 6.000
+      // tokens por minuto del modelo liviano — mejor recortar el contexto
+      // que dejar que la IA falle con un error de "solicitud muy grande".
+      .slice(0, 14000);
 
     const { GROQ_API_KEY } = process.env;
     if (!GROQ_API_KEY) throw new Error('Falta la variable de entorno GROQ_API_KEY.');
@@ -729,7 +734,7 @@ async function handlerPreguntarOneDrive(req, res) {
           { role: 'user', content: `${contexto}\n\nPregunta: ${pregunta}` },
         ],
         temperature: 0.2,
-        max_tokens: 700,
+        max_tokens: 400,
       }),
     }, 25000);
 
@@ -763,8 +768,8 @@ async function handlerPreguntarOneDrive(req, res) {
 // cuál calza mejor, por qué, y una sugerencia de ajustes. Mismo mecanismo
 // de extracción que usan "¿Análisis?" y "Preguntar a mis documentos".
 
-const MAX_CVS_COMPARAR = 15;
-const MAX_CARACTERES_CV = 2500;
+const MAX_CVS_COMPARAR = 6;
+const MAX_CARACTERES_CV = 900;
 
 async function handlerCompararCV(req, res) {
   const aviso = (req.body?.aviso || '').trim();
@@ -883,10 +888,10 @@ async function handlerCompararCV(req, res) {
             role: 'system',
             content: 'Eres un reclutador ejecutivo experto en perfiles senior/C-level. Te doy un aviso de trabajo y una o varias versiones de CV de la misma persona. Para cada CV, dale un puntaje del 1 al 10 de qué tan bien calza con el aviso y una razón breve (1-2 líneas). Al final, indica claramente cuál CV es el mejor punto de partida para postular a ESTE aviso específico (o, si solo hay uno, evalúalo igual y da tu veredicto), y da 2-3 sugerencias concretas de ajuste (qué destacar, qué agregar o reordenar) para mejorar el calce. Responde en español, directo, en formato de lista. Usa el nombre real de cada CV (no "CV 1").',
           },
-          { role: 'user', content: `AVISO DE TRABAJO:\n${aviso.slice(0, 4000)}\n\n${contexto}` },
+          { role: 'user', content: `AVISO DE TRABAJO:\n${aviso.slice(0, 2500)}\n\n${contexto}` },
         ],
         temperature: 0.3,
-        max_tokens: 900,
+        max_tokens: 500,
       }),
     }, 25000);
 
