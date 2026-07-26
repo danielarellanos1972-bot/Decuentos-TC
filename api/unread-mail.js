@@ -227,10 +227,16 @@ async function handlerBuscarOneDrive(req, res) {
 
     // Búsqueda por nombre: cada palabra escrita debe aparecer en el nombre
     // del archivo (sin importar mayúsculas/tildes), así "informe 2026"
-    // encuentra "Informe_Financiero_2026.pdf".
-    const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
+    // encuentra "Informe_Financiero_2026.pdf". Se limpian comillas y
+    // asteriscos (nadie los usa en un nombre de archivo real, y si se
+    // dejan, garantizan "sin resultados") y se ignoran palabras de relleno
+    // que a veces se cuelan si alguien escribe la búsqueda como una frase
+    // ("buscar archivos del tipo...") en vez de solo el nombre.
+    const RELLENO_BUSQUEDA = new Set(['buscar', 'archivo', 'archivos', 'del', 'tipo', 'con', 'de', 'la', 'el', 'un', 'una', 'que', 'para', 'nombre']);
+    const qLimpio = q.replace(/["'*]/g, ' ');
+    const palabras = qLimpio.toLowerCase().split(/\s+/).filter(Boolean).filter((p) => !RELLENO_BUSQUEDA.has(p));
     const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const palabrasNorm = palabras.map(normalizar);
+    const palabrasNorm = palabras.length > 0 ? palabras.map(normalizar) : qLimpio.toLowerCase().split(/\s+/).filter(Boolean).map(normalizar);
     const coincide = (nombre) => {
       const nombreNorm = normalizar(nombre);
       return palabrasNorm.every((p) => nombreNorm.includes(p));
