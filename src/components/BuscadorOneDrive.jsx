@@ -15,6 +15,7 @@ export default function BuscadorOneDrive() {
   const [fuentesRag, setFuentesRag] = useState(null);
   const [avisoRag, setAvisoRag] = useState(null);
   const [diagnosticoAgenda, setDiagnosticoAgenda] = useState(null);
+  const [correoExpandido, setCorreoExpandido] = useState(null);
   const [preguntando, setPreguntando] = useState(false);
   const [errorRag, setErrorRag] = useState(null);
 
@@ -269,7 +270,31 @@ export default function BuscadorOneDrive() {
               <div style={styles.ragFuentes}>
                 <p style={styles.modalSeccion}>Fuentes</p>
                 {fuentesRag.map((f, i) => {
-                  const icono = f.tipo === 'Correo' ? '✉️' : f.tipo === 'Agenda' ? '📅' : '📄';
+                  if (f.tipo === 'Correo') {
+                    const expandido = correoExpandido === i;
+                    return (
+                      <div key={i} style={styles.tarjetaCorreo} onClick={() => setCorreoExpandido(expandido ? null : i)}>
+                        <div style={styles.tarjetaFilaCorreo}>
+                          <span style={styles.tarjetaHoraCorreo}>{f.fecha || ''}</span>
+                          <span style={{ ...styles.insigniaCorreo, ...(f.origen === 'Outlook' ? styles.insigniaOutlookCorreo : styles.insigniaGmailCorreo) }}>
+                            {f.origen}
+                          </span>
+                        </div>
+                        <p style={styles.tarjetaAsuntoCorreo}>{f.asunto || f.nombre}</p>
+                        {f.de && <p style={styles.tarjetaDeCorreo}>{f.de}</p>}
+                        {expandido && f.cuerpo && (
+                          <p style={styles.tarjetaCuerpoCorreo}>{f.cuerpo}</p>
+                        )}
+                        {f.webUrl && expandido && (
+                          <a href={f.webUrl} target="_blank" rel="noreferrer" style={styles.tarjetaAbrirCorreo} onClick={(e) => e.stopPropagation()}>
+                            Abrir correo completo ↗
+                          </a>
+                        )}
+                        <p style={styles.tarjetaTogglePista}>{expandido ? '▲ Ocultar' : '▼ Ver contenido'}</p>
+                      </div>
+                    );
+                  }
+                  const icono = f.tipo === 'Agenda' ? '📅' : '📄';
                   const etiqueta = f.tipo && f.origen ? `${icono} [${f.tipo} · ${f.origen}] ${f.nombre}` : `${icono} ${f.nombre}`;
                   return f.webUrl ? (
                     <a key={i} href={f.webUrl} target="_blank" rel="noreferrer" style={styles.ragFuenteItem}>
@@ -538,4 +563,24 @@ const styles = {
     display: 'block', fontSize: '0.8rem', color: 'var(--gold-500)', fontWeight: 600,
     textDecoration: 'none', margin: '4px 0',
   },
+  tarjetaCorreo: {
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', borderRadius: '10px',
+    padding: '10px 12px', margin: '6px 0', cursor: 'pointer',
+  },
+  tarjetaFilaCorreo: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' },
+  tarjetaHoraCorreo: { fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--paper-100)' },
+  insigniaCorreo: {
+    fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+    padding: '2px 8px', borderRadius: '999px', color: '#fff',
+  },
+  insigniaGmailCorreo: { background: 'var(--gold-500)' },
+  insigniaOutlookCorreo: { background: '#4FA0E0' },
+  tarjetaAsuntoCorreo: { fontSize: '0.82rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px' },
+  tarjetaDeCorreo: { fontSize: '0.74rem', color: 'var(--paper-100)', margin: 0 },
+  tarjetaCuerpoCorreo: {
+    fontSize: '0.76rem', color: 'var(--paper-050)', lineHeight: 1.5, margin: '8px 0 0',
+    paddingTop: '8px', borderTop: '1px solid var(--navy-700)', whiteSpace: 'pre-wrap',
+  },
+  tarjetaAbrirCorreo: { display: 'inline-block', fontSize: '0.72rem', color: 'var(--gold-500)', fontWeight: 600, marginTop: '8px' },
+  tarjetaTogglePista: { fontSize: '0.65rem', color: 'var(--paper-100)', opacity: 0.6, margin: '6px 0 0' },
 };
