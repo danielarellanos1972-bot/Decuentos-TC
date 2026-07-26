@@ -478,15 +478,24 @@ function extraerCuerpoGmail(payload) {
   return '';
 }
 
-async function buscarCorreosGmail(pregunta) {
+async function buscarCorreosGmail(palabrasClave) {
+  if (palabrasClave.length === 0) return [];
   try {
     const accessToken = await getGoogleAccessToken();
+    // Gmail entiende palabras clave, no una pregunta completa en lenguaje
+    // natural — "puedes mostrarme los correos de LinkedIn?" no encuentra
+    // nada, pero "linkedin" sí. Se unen con OR para que baste con que
+    // aparezca alguna, no todas.
+    const consulta = palabrasClave.map((p) => `"${p}"`).join(' OR ');
     const resp = await fetchConTimeout(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(pregunta)}&maxResults=${MAX_CORREOS_RAG}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=${MAX_CORREOS_RAG}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
       8000
     );
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      console.error('buscarCorreosGmail: respuesta', resp.status, await resp.text().catch(() => ''));
+      return [];
+    }
     const data = await resp.json();
     const ids = (data.messages || []).slice(0, MAX_CORREOS_RAG);
     const detalles = await Promise.all(ids.map(async (m) => {
@@ -505,20 +514,28 @@ async function buscarCorreosGmail(pregunta) {
       return { tipo: 'Correo', fuente: 'Gmail', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: null };
     }));
     return detalles.filter(Boolean);
-  } catch {
+  } catch (err) {
+    console.error('buscarCorreosGmail: falló', err);
     return [];
   }
 }
 
-async function buscarCorreosOutlook(pregunta) {
+async function buscarCorreosOutlook(palabrasClave) {
+  if (palabrasClave.length === 0) return [];
   try {
     const accessToken = await getMicrosoftAccessToken();
+    // $search de Graph funciona mejor con un puñado de palabras clave que
+    // con una oración completa — mismo motivo que en Gmail.
+    const consulta = palabrasClave.join(' ');
     const resp = await fetchConTimeout(
-      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(pregunta)}"&$top=${MAX_CORREOS_RAG}&$select=subject,from,receivedDateTime,body,webLink`,
+      `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(consulta)}"&$top=${MAX_CORREOS_RAG}&$select=subject,from,receivedDateTime,body,webLink`,
       { headers: { Authorization: `Bearer ${accessToken}`, ConsistencyLevel: 'eventual' } },
       8000
     );
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      console.error('buscarCorreosOutlook: respuesta', resp.status, await resp.text().catch(() => ''));
+      return [];
+    }
     const data = await resp.json();
     return (data.value || []).map((m) => {
       const asunto = m.subject || '(sin asunto)';
@@ -528,7 +545,8 @@ async function buscarCorreosOutlook(pregunta) {
       if (!cuerpo) return null;
       return { tipo: 'Correo', fuente: 'Outlook', nombre: `${asunto} (de ${de})`, texto: cuerpo, webUrl: m.webLink || null };
     }).filter(Boolean);
-  } catch {
+  } catch (err) {
+    console.error('buscarCorreosOutlook: falló', err);
     return [];
   }
 }
@@ -627,8 +645,8 @@ async function handlerPreguntarOneDrive(req, res) {
     // documentos candidatos después, y todavía queda la llamada a la IA.
     const [{ archivos: todos, completo }, correosGmail, correosOutlook, eventos] = await Promise.all([
       listarTodosLosArchivos(accessToken, 12000),
-      buscarCorreosGmail(pregunta),
-      buscarCorreosOutlook(pregunta),
+      buscarCorreosGmail(palabrasClave),
+      buscarCorreosOutlook(palabrasClave),
       buscarEventosRelevantes(pregunta, palabrasClave),
     ]);
     const correos = [...correosGmail, ...correosOutlook];
