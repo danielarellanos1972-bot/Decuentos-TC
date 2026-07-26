@@ -598,6 +598,28 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
   const desde = new Date(Date.UTC(anioActual, 0, 1, 0, 0, 0));
   const hasta = new Date(Date.UTC(anioActual, 11, 31, 23, 59, 59));
   const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Si la pregunta menciona uno o dos meses ("entre agosto y noviembre"),
+  // eso no aparece nunca en el texto de un evento (las fechas se guardan en
+  // formato ISO, no como "agosto") — así que sin este reconocimiento esas
+  // palabras eran letra muerta. Acá se detectan y se usan para reforzar el
+  // puntaje de los eventos que realmente caen en ese rango de meses.
+  const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const mesesMencionados = palabrasClave
+    .map((p) => MESES_ES.indexOf(p))
+    .filter((idx) => idx !== -1)
+    .sort((a, b) => a - b);
+  const rangoMeses = mesesMencionados.length >= 2
+    ? [mesesMencionados[0], mesesMencionados[mesesMencionados.length - 1]]
+    : mesesMencionados.length === 1
+      ? [mesesMencionados[0], mesesMencionados[0]]
+      : null;
+  const enRangoDeMeses = (fecha) => {
+    if (!rangoMeses || !fecha || Number.isNaN(fecha.getTime())) return false;
+    const mes = fecha.getMonth();
+    return mes >= rangoMeses[0] && mes <= rangoMeses[1];
+  };
+
   // Puntaje por cuántas palabras clave calzan (no solo sí/no) — así un
   // evento que calza con 3 palabras ("reunión", "alejandro", "aguilera")
   // le gana el cupo a uno que solo calza con 1 ("reunión" a secas).
@@ -629,12 +651,16 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
         const p = puntaje(`${e.summary} ${e.description || ''}`);
         if (p > 0) {
           coincidencias += 1;
+          const fechaTexto = e.start?.dateTime || e.start?.date;
+          const fechaInicio = fechaTexto ? new Date(fechaTexto) : null;
+          const puntajeFinal = p + (enRangoDeMeses(fechaInicio) ? 3 : 0);
           puntuados.push({
-            puntaje: p,
+            puntaje: puntajeFinal,
+            fechaInicio,
             evento: {
               tipo: 'Agenda', fuente: 'Google',
               nombre: e.summary || '(sin título)',
-              texto: `Fecha: ${e.start?.dateTime || e.start?.date}. ${e.description || ''}`.slice(0, 500),
+              texto: `Fecha: ${fechaTexto}. ${e.description || ''}`.slice(0, 500),
               webUrl: e.htmlLink || null,
             },
           });
@@ -663,8 +689,11 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
         const p = puntaje(`${e.subject} ${e.bodyPreview || ''}`);
         if (p > 0) {
           coincidencias += 1;
+          const fechaInicioOutlook = e.start?.dateTime ? new Date(e.start.dateTime) : null;
+          const puntajeFinalOutlook = p + (enRangoDeMeses(fechaInicioOutlook) ? 3 : 0);
           puntuados.push({
-            puntaje: p,
+            puntaje: puntajeFinalOutlook,
+            fechaInicio: fechaInicioOutlook,
             evento: {
               tipo: 'Agenda', fuente: 'Outlook',
               nombre: e.subject || '(sin título)',
@@ -688,8 +717,20 @@ async function buscarEventosRelevantes(pregunta, palabrasClave) {
   const conVarias = puntuados.filter((p) => p.puntaje >= 2);
   const mejorGrupo = conVarias.length > 0 ? conVarias : puntuados;
 
+  // Desempate por cercanía a hoy cuando el puntaje es igual: sin esto, como
+  // Google devuelve los eventos ordenados cronológicamente desde enero, el
+  // más antiguo siempre le ganaba el cupo al más próximo — la respuesta
+  // terminaba mirando siempre hacia atrás en vez de hacia adelante. Los
+  // eventos futuros se ordenan por cuán pronto son (el más próximo primero)
+  // y le ganan a cualquier evento pasado con el mismo puntaje.
+  const calcularPrioridad = (fechaInicio) => {
+    if (!fechaInicio || Number.isNaN(fechaInicio.getTime())) return Infinity;
+    const diffMs = fechaInicio.getTime() - ahora.getTime();
+    return diffMs >= 0 ? diffMs : Math.abs(diffMs) + 1e15;
+  };
+
   const eventos = mejorGrupo
-    .sort((a, b) => b.puntaje - a.puntaje)
+    .sort((a, b) => b.puntaje - a.puntaje || calcularPrioridad(a.fechaInicio) - calcularPrioridad(b.fechaInicio))
     .slice(0, MAX_EVENTOS_RAG)
     .map((p) => p.evento);
 
