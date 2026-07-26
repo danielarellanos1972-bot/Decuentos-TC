@@ -42,6 +42,9 @@ export default function NewsReportPanel() {
           <a href={resultado.url} target="_blank" rel="noreferrer" style={styles.botonAbrir}>
             Abrir reporte ↗
           </a>
+          {resultado.diagnosticoRedaccion && (
+            <p style={styles.diagnostico}>🔧 {resultado.diagnosticoRedaccion}</p>
+          )}
         </div>
       )}
     </section>
@@ -70,4 +73,5 @@ const styles = {
     display: 'inline-block', background: 'var(--gold-500)', color: '#fff', textDecoration: 'none',
     fontSize: '0.85rem', fontWeight: 700, padding: '8px 16px', borderRadius: '999px',
   },
+  diagnostico: { fontSize: '0.68rem', color: 'var(--paper-100)', marginTop: '10px', fontFamily: 'var(--font-mono)' },
 };
