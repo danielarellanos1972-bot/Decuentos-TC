@@ -254,7 +254,7 @@ async function handlerBuscarOneDrive(req, res) {
           webUrl: item.webUrl,
           // El análisis solo tiene sentido para formatos de los que se
           // puede extraer texto de forma confiable.
-          analizable: /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name),
+          analizable: /\.(docx|xlsx|xls|csv|pdf|txt|pptx)$/i.test(item.name),
         };
       });
     return res.status(200).json({
@@ -289,6 +289,33 @@ function extraerTextoXLSX(buffer) {
   return partes.join('\n\n');
 }
 
+// Un .pptx es en el fondo un archivo ZIP con una carpeta ppt/slides/ que
+// tiene un XML por diapositiva — no hace falta una librería pesada para
+// leerlo, solo abrir el ZIP y sacar el texto de cada <a:t> (así se llaman
+// las etiquetas de texto dentro del XML de PowerPoint).
+async function extraerTextoPPTX(buffer) {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(buffer);
+  const nombresDiapositivas = Object.keys(zip.files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
+      const nb = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
+      return na - nb;
+    });
+
+  const partes = [];
+  for (const nombre of nombresDiapositivas) {
+    const xml = await zip.files[nombre].async('string');
+    const textos = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]).filter(Boolean);
+    if (textos.length > 0) {
+      const numero = nombre.match(/slide(\d+)\.xml/)[1];
+      partes.push(`Diapositiva ${numero}:\n${textos.join(' ')}`);
+    }
+  }
+  return partes.join('\n\n').slice(0, 15000);
+}
+
 async function extraerTexto(nombre, buffer) {
   const ext = (nombre.split('.').pop() || '').toLowerCase();
   if (ext === 'docx') {
@@ -303,6 +330,9 @@ async function extraerTexto(nombre, buffer) {
   }
   if (ext === 'pdf') {
     return await extraerTextoPDF(buffer);
+  }
+  if (ext === 'pptx') {
+    return await extraerTextoPPTX(buffer);
   }
   return null;
 }
@@ -369,7 +399,7 @@ async function handlerAnalisisOneDrive(req, res) {
     };
 
     const ext = (meta.name.split('.').pop() || '').toLowerCase();
-    if (!/^(docx|xlsx|xls|csv|pdf|txt)$/.test(ext)) {
+    if (!/^(docx|xlsx|xls|csv|pdf|txt|pptx)$/.test(ext)) {
       return res.status(200).json({
         ok: true,
         datosGenerales,
@@ -853,7 +883,7 @@ async function handlerPreguntarOneDrive(req, res) {
     ]);
     const correos = [...correosGmail, ...correosOutlook];
 
-    const analizables = todos.filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name));
+    const analizables = todos.filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt|pptx)$/i.test(item.name));
 
     // Igual que en handlerBuscarOneDrive, esto no depende del buscador de
     // Graph (poco confiable en cuentas personales) — se puntúa cada archivo
@@ -1042,7 +1072,7 @@ async function handlerCompararCV(req, res) {
       if (filtro) {
         const filtroNorm = normalizar(filtro);
         candidatos = todos
-          .filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt)$/i.test(item.name) && normalizar(item.name).includes(filtroNorm))
+          .filter((item) => /\.(docx|xlsx|xls|csv|pdf|txt|pptx)$/i.test(item.name) && normalizar(item.name).includes(filtroNorm))
           .sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))
           .slice(0, MAX_CVS_COMPARAR);
       } else {
