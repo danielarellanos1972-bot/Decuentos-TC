@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export default function BuscadorOneDrive() {
-  const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar' | 'comparar'
+  const [modo, setModo] = useState('buscar'); // 'buscar' | 'preguntar-documentos' | 'preguntar-correos' | 'preguntar-agenda' | 'comparar'
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
   const [avisoIncompleto, setAvisoIncompleto] = useState(null);
@@ -85,7 +85,8 @@ export default function BuscadorOneDrive() {
     setFuentesRag(null);
     setAvisoRag(null);
     setDiagnosticoAgenda(null);
-    fetch(`/api/unread-mail?tipo=onedrive-preguntar&q=${encodeURIComponent(texto)}`)
+    const fuente = modo === 'preguntar-documentos' ? 'documentos' : modo === 'preguntar-correos' ? 'correos' : modo === 'preguntar-agenda' ? 'agenda' : 'todos';
+    fetch(`/api/unread-mail?tipo=onedrive-preguntar&fuente=${fuente}&q=${encodeURIComponent(texto)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setErrorRag(d.error);
@@ -149,7 +150,9 @@ export default function BuscadorOneDrive() {
       <h2 style={styles.h2}>Buscar en OneDrive</h2>
       <p style={styles.sub}>
         {modo === 'buscar' && 'Por nombre de archivo (con o sin extensión) o por palabras dentro del documento.'}
-        {modo === 'preguntar' && 'Hazle una pregunta — la respuesta se arma cruzando tus documentos, correos y agenda.'}
+        {modo === 'preguntar-documentos' && 'Hazle una pregunta a tus documentos de OneDrive.'}
+        {modo === 'preguntar-correos' && 'Hazle una pregunta a tus correos (Gmail y Outlook).'}
+        {modo === 'preguntar-agenda' && 'Hazle una pregunta a tu agenda (Google y Outlook Calendar).'}
         {modo === 'comparar' && 'Pega un aviso de trabajo y te digo cuál de tus versiones de CV calza mejor.'}
       </p>
 
@@ -161,10 +164,22 @@ export default function BuscadorOneDrive() {
           🔍 Buscar archivos
         </button>
         <button
-          style={{ ...styles.toggleBoton, ...(modo === 'preguntar' ? styles.toggleBotonActivo : {}) }}
-          onClick={() => setModo('preguntar')}
+          style={{ ...styles.toggleBoton, ...(modo === 'preguntar-documentos' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('preguntar-documentos')}
         >
-          💬 Preguntar (documentos, correo y agenda)
+          📄 Preguntar documentos
+        </button>
+        <button
+          style={{ ...styles.toggleBoton, ...(modo === 'preguntar-correos' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('preguntar-correos')}
+        >
+          ✉️ Preguntar correos
+        </button>
+        <button
+          style={{ ...styles.toggleBoton, ...(modo === 'preguntar-agenda' ? styles.toggleBotonActivo : {}) }}
+          onClick={() => setModo('preguntar-agenda')}
+        >
+          📅 Preguntar agenda
         </button>
         <button
           style={{ ...styles.toggleBoton, ...(modo === 'comparar' ? styles.toggleBotonActivo : {}) }}
@@ -223,7 +238,7 @@ export default function BuscadorOneDrive() {
       </>
       )}
 
-      {modo === 'preguntar' && (
+      {(modo === 'preguntar-documentos' || modo === 'preguntar-correos' || modo === 'preguntar-agenda') && (
         <>
         <form style={styles.formFila} onSubmit={preguntar}>
           <input
