@@ -214,8 +214,50 @@ async function listarTodosLosArchivos(accessToken, presupuestoMs = PRESUPUESTO_T
   return { archivos, completo };
 }
 
+// Cuando ya se sabe (más o menos) en qué carpeta está un archivo, no hace
+// falta escanear el drive completo — se pide directo el contenido de esa
+// carpeta (y sus subcarpetas) por su ruta. Esto es rápido sin importar
+// cuántos archivos tenga el resto del OneDrive, porque nunca los toca.
+async function listarCarpeta(accessToken, ruta, profundidadMax = 4) {
+  const archivos = [];
+  const rutaLimpia = ruta.replace(/^\/+|\/+$/g, '');
+
+  async function listarPorId(itemId, profundidad) {
+    if (profundidad > profundidadMax) return;
+    let url = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/children?$select=id,name,webUrl,size,createdDateTime,lastModifiedDateTime,file,folder,parentReference&$top=200`;
+    while (url) {
+      const resp = await fetchConTimeout(url, { headers: { Authorization: `Bearer ${accessToken}` } }, 10000);
+      if (!resp.ok) {
+        const detalle = await resp.text().catch(() => '');
+        throw new Error(`OneDrive respondió con error (${resp.status}) al abrir la carpeta. ${detalle.slice(0, 200)}`);
+      }
+      const data = await resp.json();
+      const subcarpetas = [];
+      (data.value || []).forEach((item) => {
+        if (item.folder) subcarpetas.push(item);
+        else archivos.push(item);
+      });
+      await Promise.all(subcarpetas.map((sub) => listarPorId(sub.id, profundidad + 1)));
+      url = data['@odata.nextLink'] || null;
+    }
+  }
+
+  const respRaiz = await fetchConTimeout(
+    `https://graph.microsoft.com/v1.0/me/drive/root:/${rutaLimpia.split('/').map(encodeURIComponent).join('/')}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+    10000
+  );
+  if (!respRaiz.ok) {
+    throw new Error(`No encontré ninguna carpeta llamada "${ruta}" en tu OneDrive. Revisa que el nombre esté bien escrito (puede ser solo el nombre de la carpeta, no la ruta completa).`);
+  }
+  const carpetaRaiz = await respRaiz.json();
+  await listarPorId(carpetaRaiz.id, 1);
+  return archivos;
+}
+
 async function handlerBuscarOneDrive(req, res) {
   const q = (req.query.q || '').trim();
+  const carpeta = (req.query.carpeta || '').trim();
   if (!q) {
     return res.status(400).json({ error: 'Falta el término de búsqueda (parámetro "q").' });
   }
@@ -223,7 +265,19 @@ async function handlerBuscarOneDrive(req, res) {
     const accessToken = await getMicrosoftAccessToken(
       'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/Files.Read offline_access'
     );
-    const { archivos: todos, completo } = await listarTodosLosArchivos(accessToken, 45000);
+
+    let todos;
+    let completo;
+    if (carpeta) {
+      // Si se indicó una carpeta, se va directo a ella (rápido, sin
+      // importar el tamaño del resto del OneDrive) en vez de escanear todo.
+      todos = await listarCarpeta(accessToken, carpeta);
+      completo = true;
+    } else {
+      const resultado = await listarTodosLosArchivos(accessToken, 45000);
+      todos = resultado.archivos;
+      completo = resultado.completo;
+    }
 
     // Búsqueda por nombre: cada palabra escrita debe aparecer en el nombre
     // del archivo (sin importar mayúsculas/tildes), así "informe 2026"
