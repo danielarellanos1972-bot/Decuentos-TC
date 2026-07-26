@@ -161,21 +161,32 @@ export default function EmailPanel() {
             <p style={styles.resumenVacio}>Sin correos nuevos hoy.</p>
           ) : (
             resumen.correos.map((c, i) => (
-              <div key={i} style={styles.resumenItem}>
-                <span style={styles.resumenHora}>{c.hora}</span>
-                <span style={styles.resumenTexto}><strong>{c.asunto}</strong> — {c.de} <em>({c.fuente})</em></span>
+              <div key={i} style={styles.tarjeta}>
+                <div style={styles.tarjetaFila}>
+                  <span style={styles.tarjetaHora}>{c.hora}</span>
+                  <span style={{ ...styles.insignia, ...(c.fuente?.toLowerCase() === 'outlook' ? styles.insigniaOutlook : styles.insigniaGmail) }}>
+                    {c.fuente}
+                  </span>
+                </div>
+                <p style={styles.tarjetaAsunto}>{c.asunto}</p>
+                <p style={styles.tarjetaDe}>{c.de}</p>
               </div>
             ))
           )}
 
-          <p style={{ ...styles.resumenTitulo, marginTop: '14px' }}>Agenda — hoy y próximos días ({resumen.eventos.length})</p>
+          <p style={{ ...styles.resumenTitulo, marginTop: '18px' }}>Agenda — hoy y próximos días ({resumen.eventos.length})</p>
           {resumen.eventos.length === 0 ? (
             <p style={styles.resumenVacio}>Sin eventos programados.</p>
           ) : (
             resumen.eventos.map((e, i) => (
-              <div key={i} style={styles.resumenItem}>
-                <span style={styles.resumenHora}>{e.dia} · {e.hora}</span>
-                <span style={styles.resumenTexto}>{e.titulo} <em>({e.fuente})</em></span>
+              <div key={i} style={styles.tarjeta}>
+                <div style={styles.tarjetaFila}>
+                  <span style={styles.tarjetaHora}>{e.dia} · {e.hora}</span>
+                  <span style={{ ...styles.insignia, ...(e.fuente?.toLowerCase() === 'outlook' ? styles.insigniaOutlook : styles.insigniaGmail) }}>
+                    {e.fuente}
+                  </span>
+                </div>
+                <p style={styles.tarjetaAsunto}>{e.titulo}</p>
               </div>
             ))
           )}
@@ -229,7 +240,18 @@ const styles = {
   },
   resumenTitulo: { fontSize: '0.78rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 8px' },
   resumenVacio: { fontSize: '0.78rem', opacity: 0.6, margin: 0 },
-  resumenItem: { display: 'flex', gap: '8px', fontSize: '0.78rem', padding: '4px 0', alignItems: 'baseline' },
-  resumenHora: { fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--paper-100)', flexShrink: 0, minWidth: '80px' },
-  resumenTexto: { color: 'var(--paper-050)' },
+  tarjeta: {
+    background: 'var(--navy-800)', border: '1px solid var(--navy-700)', borderRadius: '10px',
+    padding: '10px 12px', marginBottom: '8px',
+  },
+  tarjetaFila: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' },
+  tarjetaHora: { fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--paper-100)' },
+  insignia: {
+    fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+    padding: '2px 8px', borderRadius: '999px', color: '#fff',
+  },
+  insigniaGmail: { background: 'var(--gold-500)' },
+  insigniaOutlook: { background: '#4FA0E0' },
+  tarjetaAsunto: { fontSize: '0.82rem', fontWeight: 700, color: 'var(--paper-050)', margin: '0 0 2px' },
+  tarjetaDe: { fontSize: '0.74rem', color: 'var(--paper-100)', margin: 0 },
 };
