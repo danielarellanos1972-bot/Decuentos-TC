@@ -19,6 +19,27 @@
   --font-mono: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
   color-scheme: light;
 }
+
+/* Tema oscuro: se activa agregando data-theme="dark" al <html>, mediante
+   el botón de cambio de tema. El claro (arriba) sigue siendo el que se ve
+   por defecto al entrar a la página. */
+[data-theme='dark'] {
+  --navy-950: #0A1F2E;
+  --navy-900: #0F2A3D;
+  --navy-800: #163A52;
+  --navy-700: #204B6B;
+  --gold-500: #D4A24C;
+  --gold-300: #E8C583;
+  --mint-500: #3FA796;
+  --mint-300: #7FCBBD;
+  --coral-500: #E8604C;
+  --paper-100: #F4EFE6;
+  --paper-050: #FAF7F1;
+  --ink-900: #12181C;
+  --cal-red: #E8604C;
+  --cal-green: #7FCBBD;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
 html, body, #root {
   margin: 0;
