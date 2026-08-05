@@ -12,6 +12,7 @@ import EmailPanel from './components/EmailPanel.jsx';
 import BuscadorOneDrive from './components/BuscadorOneDrive.jsx';
 import Calculator from './components/Calculator.jsx';
 import NowPlayingBar from './components/NowPlayingBar.jsx';
+import NotepadWidget from './components/NotepadWidget.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
 
@@ -168,6 +169,7 @@ export default function App() {
         <aside className="side-panel side-panel-stack">
           <WeatherPanel />
           <WorldClockPanel />
+          <NotepadWidget />
         </aside>
       </div>
       <NowPlayingBar />
