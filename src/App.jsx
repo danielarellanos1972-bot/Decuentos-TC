@@ -13,6 +13,7 @@ import BuscadorOneDrive from './components/BuscadorOneDrive.jsx';
 import Calculator from './components/Calculator.jsx';
 import NowPlayingBar from './components/NowPlayingBar.jsx';
 import NotepadWidget from './components/NotepadWidget.jsx';
+import TodoListWidget from './components/TodoListWidget.jsx';
 import ThemeToggle from './components/ThemeToggle.jsx';
 import { TARJETAS_PRECARGADAS, CATEGORIAS } from './data/bancos.js';
 import { getFuenteOficial, getEnlacesPortal } from './data/fuentesOficiales.js';
@@ -171,6 +172,7 @@ export default function App() {
           <WeatherPanel />
           <WorldClockPanel />
           <NotepadWidget />
+          <TodoListWidget />
         </aside>
       </div>
       <NowPlayingBar />
