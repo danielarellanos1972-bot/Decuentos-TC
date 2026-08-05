@@ -97,6 +97,8 @@ export default function App() {
         <aside className="side-panel side-panel-stack">
           <DateFXPanel />
           <MarketPanel />
+          <NotepadWidget />
+          <TodoListWidget />
         </aside>
         <div style={styles.page}>
           <header style={styles.header}>
@@ -171,8 +173,6 @@ export default function App() {
         <aside className="side-panel side-panel-stack">
           <WeatherPanel />
           <WorldClockPanel />
-          <NotepadWidget />
-          <TodoListWidget />
         </aside>
       </div>
       <NowPlayingBar />
