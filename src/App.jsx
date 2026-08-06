@@ -94,11 +94,15 @@ export default function App() {
     <>
       <Ticker />
       <div className="layout-shell">
-        <aside className="side-panel side-panel-stack">
-          <DateFXPanel />
-          <MarketPanel />
-          <NotepadWidget />
-          <TodoListWidget />
+        <aside className="side-panel side-panel-wide" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div style={styles.filaIzquierda}>
+            <DateFXPanel />
+            <NotepadWidget />
+          </div>
+          <div style={styles.filaIzquierda}>
+            <MarketPanel />
+            <TodoListWidget />
+          </div>
         </aside>
         <div style={styles.page}>
           <header style={styles.header}>
@@ -182,6 +186,7 @@ export default function App() {
 }
 
 const styles = {
+  filaIzquierda: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
   page: {
     minHeight: '100vh', maxWidth: '480px', width: '100%', margin: '0 auto',
     padding: '24px 18px 40px', overflowX: 'hidden', boxSizing: 'border-box',
