@@ -9,6 +9,7 @@ import BankLinks from './components/BankLinks.jsx';
 import WebLinks from './components/WebLinks.jsx';
 import Calendar from './components/Calendar.jsx';
 import EmailPanel from './components/EmailPanel.jsx';
+import JobTrackerWidget from './components/JobTrackerWidget.jsx';
 import BuscadorOneDrive from './components/BuscadorOneDrive.jsx';
 import Calculator from './components/Calculator.jsx';
 import NowPlayingBar from './components/NowPlayingBar.jsx';
@@ -159,6 +160,8 @@ export default function App() {
             <WebLinks />
 
             <Calendar />
+
+            <JobTrackerWidget />
 
             <EmailPanel />
 
