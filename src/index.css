@@ -89,6 +89,12 @@ a:focus-visible {
   width: 260px;
   flex-shrink: 0;
 }
+/* Panel izquierdo ensanchado: deja espacio para 2 columnas (Hoy+Notas,
+   Mercado+Tareas) sin encimarse con el contenido central — se calculó con
+   margen de sobra respecto al hueco que deja el diseño actual. */
+.side-panel-wide {
+  width: 340px;
+}
 .side-panel-stack {
   display: flex;
   flex-direction: column;
