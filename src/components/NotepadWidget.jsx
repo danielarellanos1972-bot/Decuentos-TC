@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
+import { cargarLocal, cargarRemoto, guardarSincronizado } from '../utils/sync.js';
 
 const KEY = 'descuentos-tc-notas-rapidas';
+const CLAVE_SYNC = 'notas';
 
 export default function NotepadWidget() {
-  const [texto, setTexto] = useState(() => {
-    try {
-      return localStorage.getItem(KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  const [texto, setTexto] = useState(() => cargarLocal(KEY, ''));
   const [guardado, setGuardado] = useState(true);
   const timeoutRef = useRef(null);
 
+  // Al entrar, revisa si hay algo más nuevo guardado desde otro
+  // dispositivo (PC/celular) y lo usa si existe.
   useEffect(() => {
-    return () => clearTimeout(timeoutRef.current);
+    let activo = true;
+    cargarRemoto(CLAVE_SYNC).then((valorRemoto) => {
+      if (activo && valorRemoto != null) setTexto(valorRemoto);
+    });
+    return () => {
+      activo = false;
+      clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   const manejarCambio = (e) => {
@@ -24,12 +29,8 @@ export default function NotepadWidget() {
 
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(KEY, valor);
-        setGuardado(true);
-      } catch {
-        // si falla el guardado, no es crítico — el texto sigue visible en pantalla
-      }
+      guardarSincronizado(KEY, CLAVE_SYNC, valor);
+      setGuardado(true);
     }, 500);
   };
 
@@ -37,12 +38,8 @@ export default function NotepadWidget() {
     setTexto('');
     setGuardado(false);
     clearTimeout(timeoutRef.current);
-    try {
-      localStorage.removeItem(KEY);
-      setGuardado(true);
-    } catch {
-      // no crítico
-    }
+    guardarSincronizado(KEY, CLAVE_SYNC, '');
+    setGuardado(true);
   };
 
   return (
