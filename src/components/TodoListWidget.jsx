@@ -1,48 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { cargarLocal, cargarRemoto, guardarSincronizado } from '../utils/sync.js';
 
 const KEY = 'descuentos-tc-tareas';
-
-function cargarTareas() {
-  try {
-    const saved = localStorage.getItem(KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
-
-function guardarTareas(lista) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(lista));
-  } catch {
-    // no crítico si falla el guardado
-  }
-}
+const CLAVE_SYNC = 'tareas';
 
 export default function TodoListWidget() {
-  const [tareas, setTareas] = useState(cargarTareas);
+  const [tareas, setTareas] = useState(() => cargarLocal(KEY, []));
   const [texto, setTexto] = useState('');
+
+  useEffect(() => {
+    let activo = true;
+    cargarRemoto(CLAVE_SYNC).then((valorRemoto) => {
+      if (activo && Array.isArray(valorRemoto)) setTareas(valorRemoto);
+    });
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  const persistir = (actualizado) => {
+    setTareas(actualizado);
+    guardarSincronizado(KEY, CLAVE_SYNC, actualizado);
+  };
 
   const agregar = () => {
     const valor = texto.trim();
     if (!valor) return;
     const nueva = { id: Date.now(), texto: valor, hecha: false };
-    const actualizado = [...tareas, nueva];
-    setTareas(actualizado);
-    guardarTareas(actualizado);
+    persistir([...tareas, nueva]);
     setTexto('');
   };
 
   const alternar = (id) => {
-    const actualizado = tareas.map((t) => (t.id === id ? { ...t, hecha: !t.hecha } : t));
-    setTareas(actualizado);
-    guardarTareas(actualizado);
+    persistir(tareas.map((t) => (t.id === id ? { ...t, hecha: !t.hecha } : t)));
   };
 
   const quitar = (id) => {
-    const actualizado = tareas.filter((t) => t.id !== id);
-    setTareas(actualizado);
-    guardarTareas(actualizado);
+    persistir(tareas.filter((t) => t.id !== id));
   };
 
   const pendientes = tareas.filter((t) => !t.hecha).length;
