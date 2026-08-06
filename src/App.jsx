@@ -94,15 +94,10 @@ export default function App() {
     <>
       <Ticker />
       <div className="layout-shell">
-        <aside className="side-panel side-panel-wide" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <div style={styles.filaIzquierda}>
-            <DateFXPanel />
-            <NotepadWidget />
-          </div>
-          <div style={styles.filaIzquierda}>
-            <MarketPanel />
-            <TodoListWidget />
-          </div>
+        <aside className="side-panel side-panel-stack">
+          <DateFXPanel />
+          <MarketPanel />
+          <TodoListWidget />
         </aside>
         <div style={styles.page}>
           <header style={styles.header}>
@@ -177,6 +172,7 @@ export default function App() {
         <aside className="side-panel side-panel-stack">
           <WeatherPanel />
           <WorldClockPanel />
+          <NotepadWidget />
         </aside>
       </div>
       <NowPlayingBar />
