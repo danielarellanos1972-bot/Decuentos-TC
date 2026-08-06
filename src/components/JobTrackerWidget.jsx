@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { cargarLocal, cargarRemoto, guardarSincronizado } from '../utils/sync.js';
 
 const KEY = 'descuentos-tc-postulaciones';
 
@@ -16,22 +17,7 @@ function getEstado(id) {
   return ESTADOS.find((e) => e.id === id) || ESTADOS[0];
 }
 
-function cargar() {
-  try {
-    const saved = localStorage.getItem(KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
-
-function guardar(lista) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(lista));
-  } catch {
-    // no crítico si falla el guardado
-  }
-}
+const CLAVE_SYNC = 'postulaciones';
 
 function diasHasta(fechaStr) {
   if (!fechaStr) return null;
@@ -51,7 +37,17 @@ function etiquetaFecha(fechaStr) {
 }
 
 export default function JobTrackerWidget() {
-  const [postulaciones, setPostulaciones] = useState(cargar);
+  const [postulaciones, setPostulaciones] = useState(() => cargarLocal(KEY, []));
+
+  useEffect(() => {
+    let activo = true;
+    cargarRemoto(CLAVE_SYNC).then((valorRemoto) => {
+      if (activo && Array.isArray(valorRemoto)) setPostulaciones(valorRemoto);
+    });
+    return () => {
+      activo = false;
+    };
+  }, []);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [empresa, setEmpresa] = useState('');
   const [cargo, setCargo] = useState('');
@@ -80,26 +76,26 @@ export default function JobTrackerWidget() {
     };
     const actualizado = [...postulaciones, nueva];
     setPostulaciones(actualizado);
-    guardar(actualizado);
+    guardarSincronizado(KEY, CLAVE_SYNC, actualizado);
     limpiarForm();
   };
 
   const cambiarEstado = (id, nuevoEstado) => {
     const actualizado = postulaciones.map((p) => (p.id === id ? { ...p, estado: nuevoEstado } : p));
     setPostulaciones(actualizado);
-    guardar(actualizado);
+    guardarSincronizado(KEY, CLAVE_SYNC, actualizado);
   };
 
   const cambiarFecha = (id, nuevaFecha) => {
     const actualizado = postulaciones.map((p) => (p.id === id ? { ...p, fecha: nuevaFecha || null } : p));
     setPostulaciones(actualizado);
-    guardar(actualizado);
+    guardarSincronizado(KEY, CLAVE_SYNC, actualizado);
   };
 
   const quitar = (id) => {
     const actualizado = postulaciones.filter((p) => p.id !== id);
     setPostulaciones(actualizado);
-    guardar(actualizado);
+    guardarSincronizado(KEY, CLAVE_SYNC, actualizado);
   };
 
   // Las que tienen fecha próxima van primero (la más cercana arriba); las
